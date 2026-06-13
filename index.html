@@ -75,9 +75,9 @@
   .basis.on{background:var(--amber-dim);border-color:var(--amber);color:var(--amber)}
   .roi{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--line);
        border-radius:10px;overflow:hidden;margin-top:4px}
-  .roi .cell{background:var(--panel);padding:13px 10px;text-align:center}
-  .roi .cell .lab{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
-  .roi .cell .num{font-size:18px;font-weight:800;font-family:var(--mono);margin-top:4px}
+  .roi .cell{background:var(--panel);padding:12px 6px;text-align:center;min-width:0}
+  .roi .cell .lab{font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);white-space:nowrap}
+  .roi .cell .num{font-size:15px;font-weight:800;font-family:var(--mono);margin-top:4px;word-break:break-word;line-height:1.15}
   details{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-bottom:8px;overflow:hidden}
   details summary{padding:13px 14px;font-size:13px;font-weight:600;cursor:pointer;list-style:none;
         display:flex;justify-content:space-between;align-items:center}
@@ -174,7 +174,12 @@
     <section>
       <div class="eyebrow">Your account</div>
       <div class="panel inputs" style="border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:0">
-        <div><label>Start date</label><input type="date" id="in-start" onchange="recalc()"></div>
+        <div><label>Start date</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="date" id="in-start" onchange="recalc()" style="flex:1">
+            <button onclick="setToday()" style="background:var(--panel2);border:1px solid var(--line);color:var(--amber);font-size:11px;padding:9px 10px;border-radius:8px;font-family:var(--mono);white-space:nowrap;margin-top:5px">Today</button>
+          </div>
+        </div>
         <div><label>Starting funds (USD)</label><input type="number" id="in-funds" placeholder="500" oninput="recalc()"></div>
       </div>
       <div style="display:flex;gap:6px;padding:0 14px 10px">
@@ -299,6 +304,10 @@ function applyRange(days){
   chart.timeScale().setVisibleRange({from:rows[rows.length-n].t,to:rows[rows.length-1].t});
 }
 function makeChart(){
+  if(typeof LightweightCharts==='undefined'){
+    $('chart').innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--short);font-size:12px;font-family:var(--mono)">Chart library could not load.<br>Check your internet connection and tap Refresh.</div>';
+    return false;
+  }
   $('chart').innerHTML='';
   chart=LightweightCharts.createChart($('chart'),{
     layout:{background:{color:'transparent'},textColor:'#7d8ba3',fontFamily:'SF Mono,monospace'},
@@ -327,6 +336,7 @@ function positionOn(dateStr){
   return pos;
 }
 function setData(){
+  if(!DATA.rows.length){$('chart').innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--dim);font-size:12px;font-family:var(--mono)">No price data found in the repo.<br>Run the Daily workflow on GitHub once, then Refresh.</div>';return;}
   series.setData(DATA.rows.map(r=>({time:r.t,value:r.c})));
   const mk=DATA.markers.filter(m=>m.action).map(m=>{
     const buyish=(m.action==='Buy'||m.action==='Cover');
@@ -375,6 +385,7 @@ function fillStatus(){
     $('c-bar').style.width=c.score+'%';$('c-bar').style.background=col;
   }else $('conf-sec').style.display='none';
 }
+function setToday(){const d=new Date().toISOString().slice(0,10);$('in-start').value=d;recalc();}
 function setBasis(b){const p=PREF();p.basis=b;localStorage.setItem('meridian_pref',JSON.stringify(p));
   $('b-unlev').className='basis'+(b==='unlev'?' on':'');
   $('b-lev').className='basis'+(b==='lev'?' on':'');recalc();}
@@ -426,7 +437,7 @@ async function loadAll(){
       return {d:p[0],t:Math.floor(new Date(p[0]+'T00:00:00Z').getTime()/1000),c:+p[1]};});
     DATA.markers=JSON.parse(mkRaw);
     DATA.curve=JSON.parse(eqRaw);
-    if(!chart)makeChart();
+    if(!chart){ if(makeChart()===false){ fillStatus(); $('boot').style.display='none'; $('content').style.display='block'; return; } }
     setData();fillStatus();
     const pf=PREF();
     if(pf.funds)$('in-funds').value=pf.funds;
