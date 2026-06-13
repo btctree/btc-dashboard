@@ -164,13 +164,14 @@
       <div class="chartwrap">
         <div class="rangebar" id="ranges"></div>
         <div id="chart"></div>
+        <div id="datainfo" style="font-size:9px;color:var(--faint);font-family:var(--mono);text-align:center;padding:5px 0 0"></div>
         <div class="fs-hint">↻ Rotate to landscape for fullscreen chart</div>
         <div class="legend">
-          <span><i style="background:#5b9cf5"></i>BTC close</span>
-          <span><i style="background:var(--long)"></i>Buy / Cover</span>
-          <span><i style="background:var(--short)"></i>Short / Sell</span>
-          <span><i style="background:var(--amber)"></i>entry</span>
-          <span><i style="border:1px dashed var(--short)"></i>cut-loss</span>
+          <span><i style="background:#5b9cf5"></i>BTC</span>
+          <span><i style="background:#1fd584;border-radius:50%"></i>Buy</span>
+          <span><i style="background:#f5a623;border-radius:50%"></i>Sell</span>
+          <span><i style="background:#ff5d5d;border-radius:50%"></i>Short</span>
+          <span><i style="background:#56c2ff;border-radius:50%"></i>Cover</span>
         </div>
       </div>
     </section>
@@ -180,7 +181,7 @@
       <div class="panel">
         <div class="ln"><span class="k">Entry price</span><span class="v" id="r-entry">—</span></div>
         <div class="ln"><span class="k">Target</span><span class="v" id="r-target">—</span></div>
-        <div class="ln"><span class="k">Cut-loss</span><span class="v" id="r-cut">—</span></div>
+        <div class="ln"><span class="k" id="r-cut-label">Cut-loss</span><span class="v" id="r-cut">—</span></div>
         <div class="ln"><span class="k">Open P&amp;L (unleveraged)</span><span class="v" id="r-upnl">—</span></div>
       </div>
     </section>
@@ -452,14 +453,14 @@ function positionOn(dateStr){
 function setData(){
   if(!DATA.rows.length){$('chart').innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--dim);font-size:12px;font-family:var(--mono)">No price data found in the repo.<br>Run the Daily workflow on GitHub once, then Refresh.</div>';return;}
   series.setData(DATA.rows.map(r=>({time:r.t,value:r.c})));
-  // short single-letter codes keep the chart readable; full text shows on tap (crosshair)
-  const CODE={Buy:'B',Short:'S',Sell:'X',Cover:'C'};
+  // small colored dots, no text — distinct color per action, full detail on tap
+  const COLOR={Buy:'#1fd584', Cover:'#56c2ff', Short:'#ff5d5d', Sell:'#f5a623'};
   const mk=DATA.markers.filter(m=>m.action).map(m=>{
-    const buyish=(m.action==='Buy'||m.action==='Cover');
+    const below=(m.action==='Buy'||m.action==='Cover');
     return {time:Math.floor(new Date(m.date+'T00:00:00Z').getTime()/1000),
-      position:buyish?'belowBar':'aboveBar',color:buyish?'#1fd584':'#ff5d5d',
-      shape:buyish?'arrowUp':'arrowDown', text:CODE[m.action]||m.action,
-      size:1};
+      position:below?'belowBar':'aboveBar',
+      color:COLOR[m.action]||'#7d8ba3',
+      shape:'circle', size:1, text:''};
   });
   series.setMarkers(mk);drawPriceLines();buildRanges();applyRange(PREF().range||365);
 }
@@ -470,7 +471,7 @@ function drawPriceLines(){
     {price,color,lineWidth:1,lineStyle:LightweightCharts.LineStyle.Dashed,axisLabelVisible:true,title}));};
   add(s.BY,'#f5a623','entry');
   if(s.BV>1)add(s.BV,'#ff5d5d','cut');
-  if(s.BU>1&&s.BU>s.BY*0.5&&s.BU<s.BY*1.5)add(s.BU,'#1fd584','target');
+  if(s.BK==='Y'&&s.BU>1&&s.BU>s.BY*0.5&&s.BU<s.BY*1.5)add(s.BU,'#1fd584','target');
 }
 function fillStatus(){
   const s=DATA.state,rows=DATA.rows;
@@ -482,13 +483,18 @@ function fillStatus(){
   const chg=price/prev-1;$('pxd').textContent=pct(chg)+' · 1d';
   $('pxd').style.color=chg>=0?'var(--long)':'var(--short)';
   $('asof').innerHTML=`as of<b>${DATA.last}</b>`;
+  const di=$('datainfo');
+  if(di){const lastMk=DATA.markers.length?DATA.markers[DATA.markers.length-1]:null;
+    di.textContent=`data through ${DATA.last} · ${DATA.rows.length} days · ${DATA.markers.length} signals`+
+      (lastMk?` · last signal ${lastMk.action} ${lastMk.date}`:'');}
   $('r-entry').textContent=bw!==0?usd(s.BY):'—';
-  // target: show distance-to-target as % for clarity (raw level can be far for trend rides)
-  if(bw!==0&&s.BU>1){
+  // Engine X exits on the trailing stop, not a fixed target; only Engine Y has a real target
+  if(bw!==0 && s.BK==='Y' && s.BU>1 && s.BU<s.BY*3){
     const tdist=bw===1?(s.BU/s.BY-1):(1-s.BU/s.BY);
     $('r-target').textContent=usd(s.BU)+'  ('+(tdist>=0?'+':'')+(tdist*100).toFixed(0)+'%)';
-  }else $('r-target').textContent='—';
+  }else $('r-target').textContent=(bw!==0?'trailing stop (see cut-loss)':'—');
   $('r-cut').textContent=bw!==0&&s.BV>1?usd(s.BV):'—';
+  const cl=$('r-cut-label'); if(cl) cl.textContent=(bw!==0&&s.BK==='X')?'Cut-loss / trailing stop':'Cut-loss';
   if(bw!==0){const up=bw===1?(price-s.BY)/s.BY:(s.BY-price)/s.BY;
     const el=$('r-upnl');el.textContent=pct(up);el.className='v '+(up>=0?'long':'short');}
   else $('r-upnl').textContent='—';
