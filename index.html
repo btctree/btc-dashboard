@@ -66,7 +66,7 @@
   .meter{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden}
   .meter>div{height:100%;border-radius:4px;transition:width .5s}
   .conf .note{font-size:10px;color:var(--faint);margin-top:8px;line-height:1.5}
-  .inputs{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px}
+  .inputs{display:grid;grid-template-columns:1fr;gap:12px;padding:12px 14px}
   .inputs label{font-size:10px;color:var(--dim);letter-spacing:.05em;text-transform:uppercase}
   .inputs input{width:100%;background:var(--ink);border:1px solid var(--line);color:var(--tx);
         padding:9px 10px;border-radius:8px;font-size:14px;font-family:var(--mono);margin-top:5px}
@@ -174,10 +174,25 @@
     <section>
       <div class="eyebrow">Your account</div>
       <div class="panel inputs" style="border-bottom-left-radius:0;border-bottom-right-radius:0;border-bottom:0">
-        <div><label>Start date</label>
-          <div style="display:flex;gap:6px;align-items:center">
-            <input type="date" id="in-start" onchange="recalc()" style="flex:1">
-            <button onclick="setToday()" style="background:var(--panel2);border:1px solid var(--line);color:var(--amber);font-size:11px;padding:9px 10px;border-radius:8px;font-family:var(--mono);white-space:nowrap;margin-top:5px">Today</button>
+        <div class="full"><label>Investment start</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:5px">
+            <input type="date" id="in-start" onchange="onDateEdit()" style="flex:1">
+            <select id="quick" onchange="onQuick()" style="flex:1;background:var(--ink);border:1px solid var(--line);color:var(--amber);padding:9px 8px;border-radius:8px;font-size:13px;font-family:var(--mono)">
+              <option value="">Quick set…</option>
+              <option value="0">Today (start fresh)</option>
+              <option value="7">1 week ago</option>
+              <option value="14">2 weeks ago</option>
+              <option value="30">1 month ago</option>
+              <option value="60">2 months ago</option>
+              <option value="91">3 months ago</option>
+              <option value="182">6 months ago</option>
+              <option value="365">1 year ago</option>
+              <option value="730">2 years ago</option>
+              <option value="1095">3 years ago</option>
+              <option value="1825">5 years ago</option>
+              <option value="3650">10 years ago</option>
+              <option value="max">Max (earliest data)</option>
+            </select>
           </div>
         </div>
         <div><label>Starting funds (USD)</label><input type="number" id="in-funds" placeholder="500" oninput="recalc()"></div>
@@ -385,7 +400,14 @@ function fillStatus(){
     $('c-bar').style.width=c.score+'%';$('c-bar').style.background=col;
   }else $('conf-sec').style.display='none';
 }
-function setToday(){const d=new Date().toISOString().slice(0,10);$('in-start').value=d;recalc();}
+function onQuick(){
+  const v=$('quick').value; if(v==='')return;
+  let d;
+  if(v==='max'){ d=(DATA.curve&&DATA.curve.length)?DATA.curve[0].d:(DATA.rows[0]?DATA.rows[0].d:''); }
+  else { const dt=new Date(); dt.setDate(dt.getDate()-parseInt(v)); d=dt.toISOString().slice(0,10); }
+  if(d){ $('in-start').value=d; recalc(); }
+}
+function onDateEdit(){ $('quick').value=''; recalc(); }
 function setBasis(b){const p=PREF();p.basis=b;localStorage.setItem('meridian_pref',JSON.stringify(p));
   $('b-unlev').className='basis'+(b==='unlev'?' on':'');
   $('b-lev').className='basis'+(b==='lev'?' on':'');recalc();}
@@ -396,11 +418,22 @@ function recalc(){
   const c=DATA.curve;
   if(!funds||!start||!c||!c.length){$('p-now').textContent='—';$('p-roi').textContent='—';$('p-ytd').textContent='—';return;}
   const key=lev?'n':'e';
-  let i0=c.findIndex(x=>x.d>=start);if(i0<0)i0=0;
-  const mult=c[c.length-1][key]/c[i0][key],now=funds*mult,roi=mult-1;
-  const yr=c[c.length-1].d.slice(0,4);
-  let iY=c.findIndex(x=>x.d>=yr+'-01-01');if(iY<i0)iY=i0;
-  const ytd=c[c.length-1][key]/c[iY][key]-1;
+  const lastD=c[c.length-1].d;
+  // start on/after the last data day → nothing has happened yet: 0% ROI, funds unchanged
+  let i0=c.findIndex(x=>x.d>=start);
+  let mult, roi;
+  if(start>=lastD || i0<0){ mult=1; roi=0; }
+  else { mult=c[c.length-1][key]/c[i0][key]; roi=mult-1; }
+  const now=funds*mult;
+  // year-to-date: from first day of the current year, but never earlier than the start date
+  const yr=lastD.slice(0,4);
+  let iY=c.findIndex(x=>x.d>=yr+'-01-01');
+  let ytd;
+  if(start>=lastD || iY<0 || (i0>=0 && iY<i0)){
+    ytd = (start>=lastD)?0:(c[c.length-1][key]/c[Math.max(i0,0)][key]-1);
+  } else {
+    ytd = c[c.length-1][key]/c[iY][key]-1;
+  }
   $('p-now').textContent=usd(now);
   $('p-roi').textContent=pct(roi);$('p-roi').style.color=roi>=0?'var(--long)':'var(--short)';
   $('p-ytd').textContent=pct(ytd);$('p-ytd').style.color=ytd>=0?'var(--long)':'var(--short)';
@@ -429,12 +462,18 @@ async function loadAll(){
   $('app-err').textContent='';
   try{
     if(!DATA.rows.length){$('boot').style.display='block';$('content').style.display='none';}
-    const [stateRaw,csvRaw,mkRaw,eqRaw]=await Promise.all([
-      gh('state.json'),gh('data/btc_history.csv'),gh('data/engine_actions.json').catch(()=>'[]'),gh('data/equity_curve.json').catch(()=>'[]')]);
+    const stateRaw=await gh('state.json');
+    let csvRaw='';
+    try{ csvRaw=await gh('data/btc_history.csv'); }
+    catch(e){ throw new Error('Price history not found in the repo (data/btc_history.csv). '+
+      'Run the Daily workflow on GitHub once so it commits the data, then Refresh.'); }
+    const mkRaw=await gh('data/engine_actions.json').catch(()=>'[]');
+    const eqRaw=await gh('data/equity_curve.json').catch(()=>'[]');
     const sj=JSON.parse(stateRaw);
     DATA.state=sj.state;DATA.last=sj.last_date;DATA.confidence=sj.confidence;DATA.regime=sj.regime||'';
-    DATA.rows=csvRaw.trim().split('\n').slice(1).map(l=>{const p=l.split(',');
-      return {d:p[0],t:Math.floor(new Date(p[0]+'T00:00:00Z').getTime()/1000),c:+p[1]};});
+    DATA.rows=csvRaw.replace(/\r/g,'').trim().split('\n').slice(1).map(l=>{const p=l.split(',');
+      return {d:p[0],t:Math.floor(new Date(p[0]+'T00:00:00Z').getTime()/1000),c:+p[1]};})
+      .filter(r=>r.d && !isNaN(r.c));
     DATA.markers=JSON.parse(mkRaw);
     DATA.curve=JSON.parse(eqRaw);
     if(!chart){ if(makeChart()===false){ fillStatus(); $('boot').style.display='none'; $('content').style.display='block'; return; } }
@@ -446,7 +485,8 @@ async function loadAll(){
     $('boot').style.display='none';$('content').style.display='block';
   }catch(e){
     $('boot').style.display='none';$('content').style.display='block';
-    $('app-err').textContent=e.message+'\nTap Settings to re-check your connection.';
+    const box=$('chart'); if(box) box.innerHTML='<div style="padding:34px 14px;text-align:center;color:var(--short);font-size:12px;font-family:var(--mono);line-height:1.6">'+e.message+'</div>';
+    $('app-err').textContent=e.message;
   }
 }
 buildRanges();
