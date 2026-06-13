@@ -99,6 +99,17 @@
   .foot{text-align:center;color:var(--faint);font-size:10px;margin-top:18px;padding-top:14px;border-top:1px solid var(--line)}
   .foot a{color:var(--dim)}
   #setup,#app{display:none}
+  .trade{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;
+         padding:10px 14px;border-bottom:1px solid var(--line)}
+  .trade:last-child{border-bottom:0}
+  .trade .no{font-size:10px;color:var(--faint);font-family:var(--mono);min-width:26px}
+  .trade .dir{font-size:9px;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:5px;font-weight:700;display:inline-block}
+  .trade .dir.L{background:rgba(31,213,132,.12);color:var(--long)}
+  .trade .dir.S{background:rgba(255,93,93,.12);color:var(--short)}
+  .trade .dates{font-size:11px;color:var(--dim);font-family:var(--mono);margin-top:3px}
+  .trade .pnl{font-size:14px;font-weight:700;font-family:var(--mono);text-align:right}
+  .trade .pnl.pos{color:var(--long)} .trade .pnl.neg{color:var(--short)}
+  .trade .hold{font-size:9px;color:var(--faint);font-family:var(--mono);text-align:right;margin-top:2px}
   .spin{text-align:center;color:var(--dim);font-size:12px;padding:40px;font-family:var(--mono)}
   /* landscape fullscreen chart */
   @media (orientation:landscape) and (max-height:520px){
@@ -225,6 +236,13 @@
     </section>
 
     <section>
+      <div class="eyebrow"><span>Recent trades · last 20 closed</span><span id="tr-win" class="mono"></span></div>
+      <div class="panel" id="trades-panel" style="padding:0">
+        <div id="trades-list"></div>
+      </div>
+    </section>
+
+    <section>
       <div class="eyebrow">Notes · how it works</div>
       <details><summary>What the three market states mean</summary>
         <div class="body">
@@ -316,7 +334,8 @@ function saveSetup(){
 }
 async function gh(path){
   const c=CFG();
-  const r=await fetch(`https://api.github.com/repos/${c.user}/${c.repo}/contents/${path}?ref=main`,
+  const bust=Date.now();
+  const r=await fetch(`https://api.github.com/repos/${c.user}/${c.repo}/contents/${path}?ref=main&t=${bust}`,
     {headers:{Authorization:`Bearer ${c.token}`,Accept:'application/vnd.github.raw+json'},cache:'no-store'});
   if(!r.ok)throw new Error(`GitHub ${r.status} on ${path}`+
     (r.status===401?' — token invalid or expired':r.status===404?' — check username / repo / file exists':''));
@@ -386,6 +405,36 @@ function pairTrades(){
       open=null;
     }
   }
+}
+function renderTrades(){
+  const el=$('trades-list'); if(!el)return;
+  // walk markers, build closed trades with entry/exit/pnl/holding
+  const trades=[]; let open=null;
+  for(const m of DATA.markers){
+    if(m.action==='Buy'||m.action==='Short') open={...m};
+    else if((m.action==='Sell'||m.action==='Cover')&&open){
+      const dir=open.action==='Buy'?'L':'S';
+      const pnl=dir==='L'?(m.price-open.price)/open.price:(open.price-m.price)/open.price;
+      const days=Math.round((new Date(m.date)-new Date(open.date))/864e5);
+      trades.push({dir,entryD:open.date,exitD:m.date,entryP:open.price,exitP:m.price,pnl,days});
+      open=null;
+    }
+  }
+  const recent=trades.slice(-20).reverse();
+  if(!recent.length){el.innerHTML='<div style="padding:16px;color:var(--faint);font-size:12px;text-align:center">No closed trades yet.</div>';return;}
+  const wins=recent.filter(t=>t.pnl>0).length;
+  $('tr-win').textContent=`${wins}/${recent.length} win · ${(wins/recent.length*100).toFixed(0)}%`;
+  el.innerHTML=recent.map((t,i)=>{
+    const n=trades.length-i;
+    const pos=t.pnl>=0;
+    return `<div class="trade">
+      <div class="no">#${n}</div>
+      <div><span class="dir ${t.dir}">${t.dir==='L'?'Long':'Short'}</span>
+        <div class="dates">${t.entryD} → ${t.exitD}</div></div>
+      <div><div class="pnl ${pos?'pos':'neg'}">${pos?'+':''}${(t.pnl*100).toFixed(1)}%</div>
+        <div class="hold">${t.days}d · ${usd(t.entryP)}→${usd(t.exitP)}</div></div>
+    </div>`;
+  }).join('');
 }
 function tradeInfoOn(dateStr){
   // exact marker on this day, else nothing
@@ -528,7 +577,7 @@ async function loadAll(){
       .filter(r=>r.d && !isNaN(r.c));
     DATA.markers=JSON.parse(mkRaw);
     DATA.curve=JSON.parse(eqRaw);
-    pairTrades();
+    pairTrades();renderTrades();
     if(!chart){ if(makeChart()===false){ fillStatus(); $('boot').style.display='none'; $('content').style.display='block'; return; } }
     setData();fillStatus();
     const pf=PREF();
