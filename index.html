@@ -235,7 +235,7 @@
         <div class="cell"><div class="lab">ROI · period</div><div class="num mono" id="p-roi">—</div></div>
         <div class="cell"><div class="lab">ROI · this year</div><div class="num mono" id="p-ytd">—</div></div>
       </div>
-      <div class="tip" style="padding:0 2px">Tracks the strategy's simulated curve scaled to your inputs.
+      <div class="eyebrow" style="margin-top:12px">Equity curve · from your start date</div><div id="eqchart" style="height:200px;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 2px 10px"></div><div class="tip" style="padding:0 2px">Tracks the strategy's simulated curve scaled to your inputs.
         Unleveraged compounded trade returns; the live account uses leverage. Simulation is optimistic — see Notes.</div>
     </section>
 
@@ -248,61 +248,36 @@
 
     <section>
       <div class="eyebrow">Notes · how it works</div>
-      <details><summary>What the three market states mean</summary>
-        <div class="body">
-          <p>Every day the model sorts the market into one of three moods:</p>
-          <p><b>TREND</b> — price is moving with conviction in one direction, measured by the
-          Bollinger Band width relative to price. Wide bands plus steady progress means a trend.
-          <em>Engine X</em> takes over.</p>
-          <p><b>RANGING</b> — price drifts sideways in a band, no clear direction (RSI stuck near the
-          middle, bands narrow). <em>Engine Y</em> takes over.</p>
-          <p><b>TOXIC / OFF</b> — a big range but no follow-through: violent chop that whipsaws both
-          ways. The model stands aside and holds nothing rather than get chopped up.</p>
-        </div>
-      </details>
-      <details><summary>Engine X — riding trends</summary>
-        <div class="body">
-          <p>Engine X only works when the market is <b>trending</b>. The idea: join a strong move
-          and stay in until it clearly turns.</p>
-          <p>It goes <b>long</b> when price is above its 20-day average and momentum (MACD) is
-          positive; <b>short</b> in the mirror image. Once in, a <em>trailing stop</em> ratchets
-          behind price — the more profit a trade builds, the tighter the stop gets, locking gains
-          in. It exits when price falls back through that stop or the middle of its recent channel.</p>
-        </div>
-      </details>
-      <details><summary>Engine Y — fading the range</summary>
-        <div class="body">
-          <p>Engine Y only works when the market is <b>ranging</b>, and does the opposite of X:
-          instead of chasing, it <em>fades extremes</em>.</p>
-          <p>When price stretches down to the lower Bollinger Band and turns back up, it buys; when
-          price pushes up to the upper band and rolls over, it sells. It bets price snaps back toward
-          the middle of the range — what usually happens while no trend is in control.</p>
-        </div>
-      </details>
-      <details><summary>Target and cut-loss</summary>
-        <div class="body">
-          <p><b>Target</b> is the profit objective; <b>cut-loss</b> is the line where the trade is
-          abandoned to limit damage.</p>
-          <p>For trend trades (Engine X) the real protection is the trailing stop above — it moves
-          with price. For range trades (Engine Y) the target is the middle of the range and the
-          cut-loss sits just beyond the band, because if price runs past the band the "range"
-          assumption was wrong.</p>
-          <p><em>Reality check:</em> these levels are checked once a day at the close. A real
-          leveraged position can be stopped out intraday before the close — so treat simulated
-          results as a best case, not a promise.</p>
-        </div>
-      </details>
-      <details><summary>What "confidence" means here</summary>
-        <div class="body">
-          <p>Confidence is a 0–100 score rating how <b>strong this setup is versus all past setups</b>
-          of the same engine. It blends trend strength, how far price has extended, where price sits
-          in its channel, and how calm volatility is.</p>
-          <p>In testing, high-confidence entries earned more on average than low-confidence ones, so
-          it's a useful filter — but an <em>indicator only</em>. The buy/sell decision does not
-          depend on it.</p>
-        </div>
-      </details>
-    </section>
+<details open><summary>What this system does</summary>
+<div class="body">
+<p>Each day after the close it reads <b>Binance</b> daily prices, runs the engine, and posts the signal here and on Telegram. It trades BTC with leverage and a hard stop.</p>
+<p><b>Direction</b> comes from the engine (below). <b>Size</b> = 60% / 50% / 45% of equity by confidence (High / Med / Low). <b>Leverage</b> = 5x on longs, 2x on shorts. <b>Stop</b> = 6% from entry, tightened to 3% on counter-trend longs in a confirmed bear.</p>
+</div></details>
+<details><summary>The three market states</summary>
+<div class="body">
+<p><b>TREND</b> — price moves with conviction (wide Bollinger bands, steady progress). Engine X trades it.</p>
+<p><b>RANGING</b> — price drifts sideways with no direction. Engine Y trades it.</p>
+<p><b>TOXIC</b> — a big range but violent chop that whipsaws both ways. The model stands aside and holds nothing.</p>
+</div></details>
+<details><summary>Engine X — riding trends</summary>
+<div class="body">
+<p>Active only when the market is <b>trending</b>. Goes <b>long</b> when price is above its 20-day average with positive momentum (MACD); <b>short</b> in the mirror image. A trailing stop ratchets behind price; it exits when price breaks back through that stop or the channel middle.</p>
+</div></details>
+<details><summary>Engine Y — fading the range</summary>
+<div class="body">
+<p>Active only when the market is <b>ranging</b>. It <em>fades extremes</em>: buys when price stretches to the lower band and turns up, sells when it pushes to the upper band and rolls over — betting on a snap back to the middle.</p>
+</div></details>
+<details><summary>The cut-loss and the bear tight-stop</summary>
+<div class="body">
+<p>The stop is a <b>fixed 6%</b> from entry. In a <em>confirmed bear</em> (200-day average falling and price below it), counter-trend <b>longs</b> use a tighter <b>3%</b> stop — fighting a downtrend is cut fast, while with-trend shorts keep room.</p>
+<p>Live, this stop is a <b>resting order on the exchange</b>, so it fires <em>intraday</em> the moment price hits it — protected 24/7, not only at the daily close.</p>
+</div></details>
+<details><summary>Confidence and the ROI figure</summary>
+<div class="body">
+<p><b>Confidence</b> (0-100) rates how strong a setup is versus the engine's own history; it drives size (High -> 60%, Med -> 50%, Low -> 45%).</p>
+<p>The <b>ROI curve</b> reproduces the full backtest: confidence sizing + 5x/2x + the intraday 6%/3% stop, 2014-today (Binance from Aug-2017, CoinGecko daily before). Leverage compounds gains — and a real ~-50% drawdown comes with them. Simulated; a guide, not a promise.</p>
+</div></details>
+</section>
 
     <div style="display:flex;gap:8px">
       <button class="btn" style="flex:2" onclick="loadAll()">Refresh</button>
@@ -629,6 +604,10 @@ async function loadAll(){
 buildRanges();
 if(CFG()){show('app');loadAll();}else show('setup');
 window.addEventListener('resize',()=>{if(chart)chart.applyOptions({width:$('chart').clientWidth});});
+</script>
+<script>
+(function(){var eqC,eqS;function draw(){try{var c=window.DATA&&DATA.curve;if(!c||!c.length)return;var box=document.getElementById('eqchart');if(!box||typeof LightweightCharts==='undefined')return;var fe=document.getElementById('in-funds'),se=document.getElementById('in-start');var funds=parseFloat(fe&&fe.value)||0,start=se&&se.value;var p={};try{p=JSON.parse(localStorage.getItem('meridian_pref')||'{}')}catch(e){}var key=p.basis==='lev'?'n':'e';if(!funds||!start){if(eqS)eqS.setData([]);return;}var i0=c.findIndex(function(x){return x.d>=start});if(i0<0)i0=0;var base=c[i0][key]||1;var data=c.slice(i0).filter(function(x){return x[key]>0}).map(function(x){return {time:Math.floor(new Date(x.d+'T00:00:00Z').getTime()/1000),value:+(funds*(x[key]/base)).toFixed(2)};});if(!eqC){eqC=LightweightCharts.createChart(box,{layout:{background:{color:'transparent'},textColor:'#7d8ba3',fontFamily:'monospace'},grid:{vertLines:{color:'#1a2233'},horzLines:{color:'#1a2233'}},rightPriceScale:{borderColor:'#222c40'},timeScale:{borderColor:'#222c40',timeVisible:false},height:200,width:box.clientWidth,handleScroll:false,handleScale:false});eqS=eqC.addAreaSeries({lineColor:'#f5a623',topColor:'rgba(245,166,35,.25)',bottomColor:'rgba(245,166,35,.02)',lineWidth:2,priceFormat:{type:'price',precision:0,minMove:1}});}eqS.setData(data);eqC.applyOptions({width:box.clientWidth});eqC.timeScale().fitContent();}catch(e){}}
+window.__drawEq=draw;['recalc','setBasis','onDateEdit','onQuick'].forEach(function(fn){if(window[fn]){var o=window[fn];window[fn]=function(){var r=o.apply(this,arguments);draw();return r;};}});var n=0,iv=setInterval(function(){n++;var ok=window.DATA&&DATA.curve&&DATA.curve.length;if(ok||n>50){draw();if(ok)clearInterval(iv);}},700);})();
 </script>
 </body>
 </html>
