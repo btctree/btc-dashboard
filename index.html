@@ -1,6 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+<head><script>(function(){try{
+function wrapCC(){
+ if(!window.LightweightCharts||!LightweightCharts.createChart||LightweightCharts.createChart.__mw)return false;
+ var o=LightweightCharts.createChart;
+ var w=function(cont){var ch=o.apply(this,arguments);try{
+  ch.__cont=(typeof cont==='string')?document.getElementById(cont):cont;
+  (window.__charts=window.__charts||[]).push(ch);
+  ['addAreaSeries','addLineSeries','addBaselineSeries','addHistogramSeries','addCandlestickSeries'].forEach(function(m){
+   if(!ch[m])return;var om=ch[m].bind(ch);
+   ch[m]=function(){var s=om.apply(null,arguments);try{s.__chart=ch;s.__kind=m;(window.__series=window.__series||[]).push(s);
+     if(/Area|Line|Baseline/.test(m)){var osd=s.setData.bind(s);s.setData=function(arr){try{if(window.__extendEq)arr=window.__extendEq(s,arr);}catch(e){}return osd(arr);};}
+   }catch(e){}return s;};
+  });
+ }catch(e){}return ch;};
+ try{for(var k in o){w[k]=o[k];}}catch(e){}
+ w.__mw=true;LightweightCharts.createChart=w;return true;
+}
+if(!wrapCC()){var iv=setInterval(function(){if(wrapCC())clearInterval(iv);},15);setTimeout(function(){clearInterval(iv);},10000);}
+}catch(e){}})();</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -639,6 +657,44 @@ function apply(){var v=fixSummary();if(v){setc('p-now',v.now);setc('p-roi',v.roi
 function wrap(n){var o=window[n];if(typeof o==='function'&&!o.__we){var w=function(){var r=o.apply(this,arguments);try{apply();}catch(e){}return r;};w.__we=true;window[n]=w;}}
 wrap('recalc');wrap('__redraw');wrap('__drawEq');
 setTimeout(apply,1500);setTimeout(apply,3500);
+})();</script>
+<script>(function(){
+function $(id){return document.getElementById(id);}
+window.__extendEq=function(series,arr){try{
+ if(!arr||!arr.length)return arr;
+ var ch=series.__chart;if(ch&&ch.__cont&&ch.__cont.id==='chart')return arr;
+ var se=$('in-start'),ee=$('in-end');
+ var c=(typeof DATA!=='undefined'&&DATA&&DATA.curve)?DATA.curve:null;
+ if(typeof arr[0].time!=='string')return arr;
+ var startD=(se&&se.value)||(c?c[0].d:null);
+ var endD=(ee&&ee.value)||(c?c[c.length-1].d:null);
+ var out=arr.slice();
+ if(startD&&startD<out[0].time)out.unshift({time:startD});
+ if(endD&&endD>out[out.length-1].time)out.push({time:endD});
+ return out;
+}catch(e){return arr;}};
+var tries=0;var iv=setInterval(function(){tries++;var chs=window.__charts;
+ if(chs&&chs.length){try{chs.forEach(function(ch){
+   if(ch.__cont&&ch.__cont.id!=='chart'){try{ch.priceScale('right').applyOptions({mode:1});}catch(e){}window.__eqChart=ch;}
+   else{window.__pxChart=ch;}});}catch(e){}}
+ if((window.__eqChart&&window.__pxChart)||tries>240)clearInterval(iv);},25);
+function pad(n){n=parseInt(n,10);return(n<10?'0':'')+n;}
+function monNum(s){var a=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];var i=a.indexOf(s.slice(0,3).toLowerCase());return i<0?null:pad(i+1);}
+function parseDate(txt){var m=txt.match(/(\d{4})-(\d{2})-(\d{2})/);if(m)return m[1]+'-'+m[2]+'-'+m[3];
+ m=txt.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);if(m){var mo=monNum(m[2]);if(mo)return m[3]+'-'+mo+'-'+pad(m[1]);}
+ m=txt.match(/([A-Za-z]{3,})\s+(\d{1,2}),?\s+(\d{4})/);if(m){var n=monNum(m[1]);if(n)return m[3]+'-'+n+'-'+pad(m[2]);}return null;}
+function addDays(ds,d){try{var t=new Date(ds+'T00:00:00Z');t.setUTCDate(t.getUTCDate()+d);return t.toISOString().slice(0,10);}catch(e){return ds;}}
+function pulse(s){try{var o=s.options?s.options():{};var hasLC=('lineColor'in o),hasC=('color'in o);var oc=hasLC?o.lineColor:(hasC?o.color:null);var ow=o.lineWidth;
+ var hi={lineWidth:4};if(hasLC)hi.lineColor='#ffd479';if(hasC)hi.color='#ffd479';s.applyOptions(hi);
+ setTimeout(function(){try{var rv={lineWidth:ow||2};if(hasLC)rv.lineColor=oc;if(hasC)rv.color=oc;s.applyOptions(rv);}catch(e){}},1700);}catch(e){}}
+function zoom(ch,ds){try{ch.timeScale().setVisibleRange({from:addDays(ds,-28),to:addDays(ds,28)});}catch(e){}}
+var box=null;
+function findBox(){var els=[].slice.call(document.querySelectorAll('h1,h2,h3,h4'));for(var i=0;i<els.length;i++){if(/Recent trades/i.test(els[i].textContent||''))return els[i].parentElement||els[i];}return null;}
+document.addEventListener('click',function(ev){try{if(!box)box=findBox();if(!box||!box.contains(ev.target))return;
+ var row=ev.target.closest('li,tr,div');var txt=(row&&row.textContent)||'';var ds=parseDate(txt);
+ (window.__series||[]).forEach(function(s){if(/Area|Line|Baseline/.test(s.__kind||''))pulse(s);});
+ if(ds){if(window.__eqChart)zoom(window.__eqChart,ds);if(window.__pxChart)zoom(window.__pxChart,ds);}
+}catch(e){}},true);
 })();</script>
 </body>
 </html>
