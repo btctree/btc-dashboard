@@ -1,3 +1,7 @@
+https://raw.githubusercontent.com/btctree/btc-dashboard/main/index.html
+→ https://raw.githubusercontent.com/btctree/btc-dashboard/main/index.html
+Content-Type: text/plain; charset=utf-8
+
 <!DOCTYPE html>
 <html lang="en">
 <head><script>(function __shimFn(){try{
@@ -210,6 +214,16 @@
         <div class="ln"><span class="k">Target / exit</span><span class="v" id="r-target">—</span></div>
         <div class="ln"><span class="k" id="r-cut-label">Cut-loss</span><span class="v" id="r-cut">—</span></div>
         <div class="ln"><span class="k">Open P&amp;L (unleveraged)</span><span class="v" id="r-upnl">—</span></div>
+      </div>
+    </section>
+
+    <section id="na-sec" style="display:none">
+      <div class="eyebrow">Next action — when flat</div>
+      <div class="panel">
+        <div class="ln"><span class="k">To go LONG</span><span class="v" id="na-long">—</span></div>
+        <div class="ln"><span class="k">To go SHORT</span><span class="v" id="na-short">—</span></div>
+        <div class="ln"><span class="k">Key levels</span><span class="v" id="na-levels">—</span></div>
+        <div class="note">Entries are regime-gated — these are levels/conditions, not guaranteed fills.</div>
       </div>
     </section>
 
@@ -537,6 +551,20 @@ function fillStatus(){
     const col=c.bucket==='High'?'var(--long)':c.bucket==='Med'?'var(--amber)':'var(--short)';
     $('c-bar').style.width=c.score+'%';$('c-bar').style.background=col;
   }else $('conf-sec').style.display='none';
+  const na=DATA.next_action;
+  if(bw===0&&na){
+    $('na-sec').style.display='';
+    const lt=na.long_trigger,st=na.short_trigger,L=na.levels||{};
+    $('na-long').textContent=na.long_condition+(lt?'  (~'+usd(lt)+')':'');
+    $('na-short').textContent=na.short_condition+(st?'  (~'+usd(st)+')':'');
+    const parts=[];
+    if(L.sma20)parts.push('SMA20 '+usd(L.sma20));
+    if(L.sma50)parts.push('SMA50 '+usd(L.sma50));
+    if(L.boll_dn&&L.boll_up)parts.push('Boll '+usd(L.boll_dn)+'–'+usd(L.boll_up));
+    if(L.rsi!=null)parts.push('RSI '+L.rsi);
+    if(L.macd!=null)parts.push('MACD '+Math.round(L.macd));
+    $('na-levels').textContent=parts.join('  ·  ');
+  }else $('na-sec').style.display='none';
 }
 function onQuick(){
   const v=$('quick').value; if(v==='')return;
@@ -608,7 +636,7 @@ async function loadAll(){
     const mkRaw=await gh('data/engine_actions.json').catch(()=>'[]');
     const eqRaw=await gh('data/equity_curve.json').catch(()=>'[]');
     const sj=JSON.parse(stateRaw);
-    DATA.state=sj.state;DATA.last=sj.last_date;DATA.confidence=sj.confidence;DATA.regime=sj.regime||'';
+    DATA.state=sj.state;DATA.last=sj.last_date;DATA.confidence=sj.confidence;DATA.regime=sj.regime||'';DATA.next_action=sj.next_action;
     DATA.rows=csvRaw.replace(/\r/g,'').trim().split('\n').slice(1).map(l=>{const p=l.split(',');
       return {d:p[0],t:Math.floor(new Date(p[0]+'T00:00:00Z').getTime()/1000),c:+p[1]};})
       .filter(r=>r.d && !isNaN(r.c));
