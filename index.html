@@ -216,10 +216,14 @@
     <section id="na-sec" style="display:none">
       <div class="eyebrow">Next action — when flat</div>
       <div class="panel">
+        <div class="ln"><span class="k">Regime</span><span class="v" id="na-regime">—</span></div>
+        <div class="ln"><span class="k">Potential</span><span class="v" id="na-bias">—</span></div>
+        <div class="ln"><span class="k" id="na-k1">—</span><span class="v" id="na-v1">—</span></div>
+        <div class="ln"><span class="k" id="na-k2">—</span><span class="v" id="na-v2">—</span></div>
         <div class="ln"><span class="k">To go LONG</span><span class="v" id="na-long">—</span></div>
         <div class="ln"><span class="k">To go SHORT</span><span class="v" id="na-short">—</span></div>
         <div class="ln"><span class="k">Key levels</span><span class="v" id="na-levels">—</span></div>
-        <div class="note">Entries are regime-gated — these are levels/conditions, not guaranteed fills.</div>
+        <div class="note">Entries are regime-gated — levels/conditions, not guaranteed fills.</div>
       </div>
     </section>
 
@@ -550,9 +554,21 @@ function fillStatus(){
   const na=DATA.next_action;
   if(bw===0&&na){
     $('na-sec').style.display='';
+    $('na-regime').textContent=na.regime||'—';
+    const up=na.bias==='UP';
+    $('na-bias').textContent=(na.bias||'—')+' '+(up?'\u25B2':'\u25BC');
+    $('na-bias').className='v '+(up?'long':'short');
+    if(na.regime==='TREND'){
+      $('na-k1').textContent='Pivot (SMA50)';$('na-v1').textContent=na.pivot_sma50?usd(na.pivot_sma50)+'  (long above / short below)':'—';
+      $('na-k2').textContent='Target';$('na-v2').textContent=na.ref_target?usd(na.ref_target)+'  ('+(na.ref_type||'')+')':'—';
+    }else{
+      $('na-k1').textContent='Range  peak / mid / bottom';
+      $('na-v1').textContent=(na.peak?usd(na.peak):'?')+' / '+(na.mid?usd(na.mid):'?')+' / '+(na.bottom?usd(na.bottom):'?');
+      $('na-k2').textContent='Price zone';$('na-v2').textContent=na.zone||'—';
+    }
     const lt=na.long_trigger,st=na.short_trigger,L=na.levels||{};
-    $('na-long').textContent=na.long_condition+(lt?'  (~'+usd(lt)+')':'');
-    $('na-short').textContent=na.short_condition+(st?'  (~'+usd(st)+')':'');
+    $('na-long').textContent=(na.long_condition||'')+(lt?'  (~'+usd(lt)+')':'');
+    $('na-short').textContent=(na.short_condition||'')+(st?'  (~'+usd(st)+')':'');
     const parts=[];
     if(L.sma20)parts.push('SMA20 '+usd(L.sma20));
     if(L.sma50)parts.push('SMA50 '+usd(L.sma50));
