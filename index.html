@@ -105,7 +105,7 @@
 
   <div class="sigs">
     <div class="sig">
-      <div class="who"><b>M1 vs M5</b> · 7% trail<span class="tag">STATIC</span></div>
+      <div class="who"><b>M1 vs M5</b> · 7% trail<span class="tag" id="m1tag">STATIC</span></div>
       <div id="m1sig"><div class="err">loading…</div></div>
     </div>
     <div class="sig">
@@ -152,7 +152,8 @@
   </div>
 
   <footer>
-    M1 vs M5 curve is a static backtest artifact (this repo) · Max B data is fetched live from
+    M1 vs M5 data is published daily by the BTC-Signal engine (falls back to the static backtest
+    if the live feed is missing) · Max B is fetched live from
     <a href="https://btctree.github.io/btc-power/">btc-power</a> · price from Binance.<br>
     Backtests, not guarantees. Nothing here is financial advice.
   </footer>
@@ -176,19 +177,25 @@ const fmtD = t => { const x = new Date(t); return MON[x.getUTCMonth()] + " " + x
 const pct = (v, dp=0) => (v >= 0 ? "+" : "") + (v * 100).toFixed(dp) + "%";
 
 /* ── state ── */
-const S = { m1: null, m1acts: null, mb: null };   // loaded data
+const S = { m1: null, m1acts: null, m1state: null, m1live: false, mb: null };   // loaded data
 let range = "ALL", mode = "BOTH", tradeSrc = "MB";
 
-/* ── boot: fetch everything, degrade per-section ── */
+/* ── boot: fetch everything, live-first with static fallback, degrade per-section ── */
+const J = u => fetch(u).then(r => { if (!r.ok) throw 0; return r.json(); });
 Promise.allSettled([
-  fetch("./equity_curve_hist.json").then(r => { if (!r.ok) throw 0; return r.json(); }),
-  fetch("./engine_actions_hist.json").then(r => { if (!r.ok) throw 0; return r.json(); }),
-  fetch(POWER_URL + "?t=" + Date.now()).then(r => { if (!r.ok) throw 0; return r.json(); }),
-  fetch(PRICE_URL).then(r => { if (!r.ok) throw 0; return r.json(); }),
-]).then(([c, a, p, px]) => {
-  if (c.status === "fulfilled")
-    S.m1 = c.value.map(q => ({ t: ms(q.d), d: q.d, v: q.n }));
-  if (a.status === "fulfilled") S.m1acts = a.value;
+  J("./equity_curve_live.json?t=" + Date.now()),    // published daily by BTC-Signal
+  J("./engine_actions_live.json?t=" + Date.now()),
+  J("./m1_state.json?t=" + Date.now()),
+  J("./equity_curve_hist.json"),                    // static fallback (backtest to 2026-06-13)
+  J("./engine_actions_hist.json"),
+  J(POWER_URL + "?t=" + Date.now()),
+  J(PRICE_URL),
+]).then(([cl, al, sl, ch, ah, p, px]) => {
+  const curve = cl.status === "fulfilled" ? cl.value : (ch.status === "fulfilled" ? ch.value : null);
+  S.m1live = cl.status === "fulfilled";
+  if (curve) S.m1 = curve.map(q => ({ t: ms(q.d), d: q.d, v: q.n }));
+  S.m1acts = al.status === "fulfilled" ? al.value : (ah.status === "fulfilled" ? ah.value : null);
+  S.m1state = sl.status === "fulfilled" ? sl.value : null;
   if (p.status === "fulfilled") S.mb = p.value;
   renderPrice(px.status === "fulfilled" ? +px.value.price : null);
   renderSignals(); renderPosition(); chips(); draw(); renderH2H(); renderScen(); tradeChips(); renderTrades();
@@ -209,16 +216,22 @@ function lastM1State(){
   return { dir, last };
 }
 function renderSignals(){
-  const m1 = document.getElementById("m1sig");
+  const m1 = document.getElementById("m1sig"), m1tag = document.getElementById("m1tag");
   m1.textContent = "";
   if (S.m1){
-    const st = lastM1State();
     const endD = S.m1[S.m1.length - 1].d, endV = S.m1[S.m1.length - 1].v;
-    const chip = document.createElement("span"); chip.className = "chipdir " + (st ? st.dir : "FLAT");
-    chip.textContent = st ? st.dir : "FLAT"; m1.appendChild(chip);
+    const dir = S.m1state && S.m1state.signal ? S.m1state.signal
+              : (lastM1State() ? lastM1State().dir : "FLAT");
+    if (S.m1live){
+      const age = Math.round((Date.now() - ms(endD)) / DAY);
+      if (age <= 4){ m1tag.textContent = "LIVE"; m1tag.className = "tag live"; }
+      else { m1tag.textContent = "LAGGING " + age + "d"; m1tag.className = "tag"; }
+    } else { m1tag.textContent = "STATIC"; m1tag.className = "tag"; }
+    const chip = document.createElement("span"); chip.className = "chipdir " + dir;
+    chip.textContent = dir; m1.appendChild(chip);
     const d1 = document.createElement("div"); d1.className = "d1";
-    d1.innerHTML = "";
-    const bits = [["Curve end", endD], ["Account", fmt$(endV)], ["Engine", "X/Y · 5×L 2×S"]];
+    const eng = S.m1state && S.m1state.state && S.m1state.state.BK ? S.m1state.state.BK + " · 5×L 2×S" : "X/Y · 5×L 2×S";
+    const bits = [["As of", endD], ["Account", fmt$(endV)], ["Engine", eng]];
     for (const [k, v] of bits){ const r = document.createElement("div");
       const b = document.createElement("b"); b.textContent = v;
       r.appendChild(document.createTextNode(k + " ")); r.appendChild(b); d1.appendChild(r); }
@@ -376,7 +389,7 @@ function draw(){
 
   window.__view = view;
   note.textContent = "Log scale. M1 vs M5 is a sparse change-point curve" +
-    (S.m1 ? " (to " + S.m1[S.m1.length-1].d + ", static)" : "") +
+    (S.m1 ? " (to " + S.m1[S.m1.length-1].d + (S.m1live ? ", live daily" : ", static") + ")" : "") +
     (mb ? "; Max B @50bp is daily" + (view.length && range === "ALL" ? " (downsampled for drawing)" : "") + ", live from btc-power." : ".");
   renderLegend();
 }
