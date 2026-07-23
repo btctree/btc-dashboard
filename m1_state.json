@@ -1,0 +1,43 @@
+{
+  "state": {
+    "BW": 0,
+    "BK": "Y",
+    "BY": 0.0,
+    "BV": 0.0,
+    "BU": 0.0
+  },
+  "last_date": "2026-07-22",
+  "price": 66114.49,
+  "regime": "RANGING",
+  "data_source": "Binance data.binance.vision + live klines top-up + CoinGecko pre-2017",
+  "signal": "FLAT",
+  "confidence": null,
+  "bear_regime": false,
+  "cutloss_pct": 0.07,
+  "stop_type": "trailing",
+  "trail_pct": 0.07,
+  "leverage": null,
+  "margin_pct": null,
+  "next_action": {
+    "engine": "Y",
+    "levels": {
+      "sma20": 64072.18,
+      "sma50": 63151.06,
+      "boll_up": 66368.96,
+      "boll_dn": 61775.4,
+      "rsi": 67.4,
+      "macd": 589.4,
+      "macd_signal": 198.2
+    },
+    "long_trigger": 66940.92,
+    "short_trigger": null,
+    "regime": "RANGING",
+    "bias": "DOWN",
+    "zone": "PEAK",
+    "peak": 66368.96,
+    "mid": 64072.18,
+    "bottom": 61775.4,
+    "long_condition": "price fades to the lower band ($61,775) with RSI turning up",
+    "short_condition": "price extends to the upper band ($66,369) with RSI turning down"
+  }
+}
