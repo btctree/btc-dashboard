@@ -3,16 +3,16 @@
     "BW": -1,
     "BK": "X",
     "BY": 62887.88,
-    "BV": 67290.03,
+    "BV": 67221.29,
     "BU": 6288.79
   },
-  "last_date": "2026-07-31",
-  "price": 62887.88,
+  "last_date": "2026-08-01",
+  "price": 62823.64,
   "regime": "TREND",
   "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
   "signal": "SHORT",
   "confidence": {
-    "score": 55,
+    "score": 63,
     "bucket": "Med"
   },
   "bear_regime": true,
