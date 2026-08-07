@@ -6,8 +6,8 @@
     "BV": 0.0,
     "BU": 0.0
   },
-  "last_date": "2026-08-05",
-  "price": 64665.23,
+  "last_date": "2026-08-06",
+  "price": 64323.61,
   "regime": "RANGING",
   "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
   "signal": "FLAT",
@@ -21,23 +21,23 @@
   "next_action": {
     "engine": "Y",
     "levels": {
-      "sma20": 64421.85,
-      "sma50": 63317.92,
-      "boll_up": 66354.29,
-      "boll_dn": 62489.41,
-      "rsi": 42.6,
-      "macd": -22.8,
-      "macd_signal": 31.0
+      "sma20": 64441.45,
+      "sma50": 63297.72,
+      "boll_up": 66360.86,
+      "boll_dn": 62522.03,
+      "rsi": 45.8,
+      "macd": 2.1,
+      "macd_signal": 25.2
     },
-    "long_trigger": 66281.86,
-    "short_trigger": 62240.28,
+    "long_trigger": 65931.7,
+    "short_trigger": 61911.47,
     "regime": "RANGING",
-    "bias": "DOWN",
+    "bias": "UP",
     "zone": "MIDDLE",
-    "peak": 66354.29,
-    "mid": 64421.85,
-    "bottom": 62489.41,
-    "long_condition": "price fades to the lower band ($62,489) with RSI turning up",
-    "short_condition": "price extends to the upper band ($66,354) with RSI turning down"
+    "peak": 66360.86,
+    "mid": 64441.45,
+    "bottom": 62522.03,
+    "long_condition": "price fades to the lower band ($62,522) with RSI turning up",
+    "short_condition": "price extends to the upper band ($66,361) with RSI turning down"
   }
 }
