@@ -1,15 +1,15 @@
 {
   "state": {
     "BW": 0,
-    "BK": "Y",
+    "BK": "X",
     "BY": 0.0,
     "BV": 0.0,
     "BU": 0.0
   },
-  "last_date": "2026-08-13",
-  "price": 63490.86,
-  "regime": "RANGING",
-  "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
+  "last_date": "2026-08-14",
+  "price": 63043.56,
+  "regime": "TREND",
+  "data_source": "Binance data.binance.vision + live klines top-up + CoinGecko pre-2017",
   "signal": "FLAT",
   "confidence": null,
   "bear_regime": false,
@@ -19,25 +19,24 @@
   "leverage": null,
   "margin_pct": null,
   "next_action": {
-    "engine": "Y",
+    "engine": "X",
     "levels": {
-      "sma20": 64071.77,
-      "sma50": 63393.42,
-      "boll_up": 65489.69,
-      "boll_dn": 62653.84,
-      "rsi": 39.9,
-      "macd": -65.5,
-      "macd_signal": 32.1
+      "sma20": 64005.19,
+      "sma50": 63441.68,
+      "boll_up": 65486.77,
+      "boll_dn": 62523.62,
+      "rsi": 51.6,
+      "macd": -138.5,
+      "macd_signal": -2.0
     },
-    "long_trigger": 61903.59,
-    "short_trigger": 61109.95,
-    "regime": "RANGING",
-    "bias": "UP",
-    "zone": "BOTTOM",
-    "peak": 65489.69,
-    "mid": 64071.77,
-    "bottom": 62653.84,
-    "long_condition": "price fades to the lower band ($62,654) with RSI turning up",
-    "short_condition": "price extends to the upper band ($65,490) with RSI turning down"
+    "long_trigger": 66195.74,
+    "short_trigger": 62255.52,
+    "regime": "TREND",
+    "bias": "DOWN",
+    "pivot_sma50": 63441.68,
+    "ref_target": 62823.64,
+    "ref_type": "support / recent low",
+    "long_condition": "price reclaims SMA50 ($63,442) with MACD turning positive",
+    "short_condition": "RSI recovers above 35 (now 52) while price stays below SMA50 ($63,442)"
   }
 }
