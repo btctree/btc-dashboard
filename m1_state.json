@@ -1,25 +1,25 @@
 {
   "state": {
-    "BW": -1,
-    "BK": "Y",
+    "BW": 1,
+    "BK": "X",
     "BY": 64725.42,
-    "BV": 69256.2,
-    "BU": 63914.61
+    "BV": 64481.35,
+    "BU": 346673.95
   },
-  "last_date": "2026-08-18",
-  "price": 64725.42,
-  "regime": "RANGING",
-  "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
-  "signal": "SHORT",
+  "last_date": "2026-08-19",
+  "price": 69334.79,
+  "regime": "TREND",
+  "data_source": "Binance data.binance.vision + live klines top-up + CoinGecko pre-2017",
+  "signal": "LONG",
   "confidence": {
-    "score": 0,
-    "bucket": "Low"
+    "score": 100,
+    "bucket": "High"
   },
-  "bear_regime": true,
+  "bear_regime": false,
   "cutloss_pct": 0.07,
   "stop_type": "trailing",
   "trail_pct": 0.07,
-  "leverage": 2.0,
-  "margin_pct": 0.45,
+  "leverage": 5.0,
+  "margin_pct": 0.6,
   "next_action": null
 }
