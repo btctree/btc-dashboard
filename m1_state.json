@@ -3,16 +3,16 @@
     "BW": 1,
     "BK": "X",
     "BY": 64725.42,
-    "BV": 72854.37,
+    "BV": 73463.26,
     "BU": 346673.95
   },
-  "last_date": "2026-08-23",
-  "price": 77734.0,
+  "last_date": "2026-08-24",
+  "price": 78992.75,
   "regime": "TREND",
-  "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
+  "data_source": "Binance data.binance.vision + live klines top-up + CoinGecko pre-2017",
   "signal": "LONG",
   "confidence": {
-    "score": 82,
+    "score": 95,
     "bucket": "High"
   },
   "bear_regime": false,
