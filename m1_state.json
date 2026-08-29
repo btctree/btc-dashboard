@@ -6,20 +6,20 @@
     "BV": 74632.11,
     "BU": 346673.95
   },
-  "last_date": "2026-08-27",
-  "price": 80249.58,
+  "last_date": "2026-08-28",
+  "price": 77845.87,
   "regime": "TREND",
   "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
   "signal": "LONG",
   "confidence": {
-    "score": 93,
-    "bucket": "High"
+    "score": 61,
+    "bucket": "Med"
   },
   "bear_regime": false,
   "cutloss_pct": 0.07,
   "stop_type": "trailing",
   "trail_pct": 0.07,
   "leverage": 5.0,
-  "margin_pct": 0.6,
+  "margin_pct": 0.5,
   "next_action": null
 }
