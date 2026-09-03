@@ -1,25 +1,42 @@
 {
   "state": {
-    "BW": 1,
+    "BW": 0,
     "BK": "X",
-    "BY": 77439.0,
-    "BV": 72018.27,
-    "BU": 387195.0
+    "BY": 0.0,
+    "BV": 0.0,
+    "BU": 0.0
   },
-  "last_date": "2026-09-01",
-  "price": 77439.0,
+  "last_date": "2026-09-02",
+  "price": 77340.01,
   "regime": "TREND",
   "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
-  "signal": "LONG",
-  "confidence": {
-    "score": 70,
-    "bucket": "High"
-  },
+  "signal": "FLAT",
+  "confidence": null,
   "bear_regime": false,
   "cutloss_pct": 0.07,
   "stop_type": "trailing",
   "trail_pct": 0.07,
-  "leverage": 5.0,
-  "margin_pct": 0.6,
-  "next_action": null
+  "leverage": null,
+  "margin_pct": null,
+  "next_action": {
+    "engine": "X",
+    "levels": {
+      "sma20": 73885.87,
+      "sma50": 67921.93,
+      "boll_up": 86885.76,
+      "boll_dn": 60885.98,
+      "rsi": 70.2,
+      "macd": 3371.7,
+      "macd_signal": 3463.9
+    },
+    "long_trigger": 85074.01,
+    "short_trigger": null,
+    "regime": "TREND",
+    "bias": "UP",
+    "pivot_sma50": 67921.93,
+    "ref_target": 80249.58,
+    "ref_type": "resistance / recent high",
+    "long_condition": "price reclaims SMA50 ($67,922) with MACD turning positive",
+    "short_condition": "RSI recovers above 35 (now 70) while price stays below SMA50 ($67,922)"
+  }
 }
