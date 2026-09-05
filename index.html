@@ -114,6 +114,11 @@
     </div>
   </div>
 
+  <div class="card" id="m1poscard" style="display:none">
+    <h2>M1 vs M5 — open position</h2>
+    <div id="m1pos"></div>
+  </div>
+
   <div class="card" id="mbposcard" style="display:none">
     <h2>Max B — open position</h2>
     <div id="mbpos"></div>
@@ -128,6 +133,16 @@
       <div class="tip" id="tip"></div>
     </div>
     <div class="caveat" id="chartNote">loading curves…</div>
+  </div>
+
+  <div class="card">
+    <h2>$300 invested — since 1 Jul 2026</h2>
+    <div class="legend" id="legend2"></div>
+    <div class="chartbox">
+      <svg id="chart2" viewBox="0 0 640 300" role="img" aria-label="Both models rebased to a $300 start on 1 July 2026, linear scale"></svg>
+      <div class="tip" id="tip2"></div>
+    </div>
+    <div class="caveat" id="chart2Note">loading…</div>
   </div>
 
   <div class="card">
@@ -198,7 +213,7 @@ Promise.allSettled([
   S.m1state = sl.status === "fulfilled" ? sl.value : null;
   if (p.status === "fulfilled") S.mb = p.value;
   renderPrice(px.status === "fulfilled" ? +px.value.price : null);
-  renderSignals(); renderPosition(); chips(); draw(); renderH2H(); renderScen(); tradeChips(); renderTrades();
+  renderSignals(); renderM1Position(); renderPosition(); chips(); draw(); draw300(); renderH2H(); renderScen(); tradeChips(); renderTrades();
 });
 
 function renderPrice(p){
@@ -283,6 +298,200 @@ function renderPosition(){
   if (g.instruction){
     const c = document.createElement("div"); c.className = "caveat"; c.textContent = g.instruction; box.appendChild(c);
   }
+}
+
+/* ── M1 vs M5 position card ── */
+function m1OpenEntry(){
+  /* entry DATE of the open trade = last unmatched Buy/Short in the live markers */
+  if (!S.m1acts || !S.m1acts.length) return null;
+  let open = null;
+  for (const a of S.m1acts){
+    if (a.action === "Buy" || a.action === "Short") open = a;
+    else if (a.action === "Sell" || a.action === "Cover") open = null;
+  }
+  return open;
+}
+function renderM1Position(){
+  const st = S.m1state;
+  if (!st) return;                                           // no live state -> card stays hidden
+  const card = document.getElementById("m1poscard"), box = document.getElementById("m1pos");
+  card.style.display = "";
+  box.textContent = "";
+  if (!(st.state && st.state.BW)){                           // FLAT: show status + next-action watch
+    const chip = document.createElement("span"); chip.className = "chipdir FLAT";
+    chip.textContent = "FLAT"; box.appendChild(chip);
+    const na = st.next_action;
+    if (na){
+      const rows = [["Regime", na.regime || st.regime || "—"],
+                    ["Bias", (na.bias || "—") + (na.zone ? " · " + na.zone + " of range" : "")]];
+      if (na.regime === "TREND" && na.pivot_sma50) rows.push(["Pivot (SMA50)", fmtFull(na.pivot_sma50)]);
+      if (na.regime === "RANGING" && na.peak && na.bottom)
+        rows.push(["Range", fmtFull(na.bottom) + " – " + fmtFull(na.peak)]);
+      const kvwrap = document.createElement("div"); kvwrap.style.marginTop = "10px";
+      for (const [k, v] of rows){
+        const r = document.createElement("div"); r.className = "kv";
+        const kk = document.createElement("span"); kk.className = "k"; kk.textContent = k;
+        const vv = document.createElement("span"); vv.className = "v mono"; vv.textContent = v;
+        r.append(kk, vv); kvwrap.appendChild(r);
+      }
+      box.appendChild(kvwrap);
+      const c = document.createElement("div"); c.className = "caveat";
+      c.textContent = "⬆ Long: " + (na.long_condition || "—") + "  ·  ⬇ Short: " + (na.short_condition || "—") +
+        " — as of " + st.last_date + " close. Entries are regime-gated: conditions, not guaranteed fills.";
+      box.appendChild(c);
+    } else {
+      const c = document.createElement("div"); c.className = "caveat";
+      c.textContent = "No open position as of " + st.last_date + " close.";
+      box.appendChild(c);
+    }
+    return;
+  }
+  const b = st.state, long = b.BW === 1;
+  const lev = st.leverage != null ? st.leverage : (long ? 5 : 2);
+  const om = m1OpenEntry();
+  const entryTxt = fmtFull(b.BY) + (om && Math.abs(om.price - b.BY) / b.BY < 0.005 ? " · " + om.date : "");
+  const conf = st.confidence ? st.confidence.score + "/100 (" + st.confidence.bucket + ")" : "—";
+  const rows = [
+    ["Direction", (long ? "LONG" : "SHORT") + " @ " + Math.round(lev) + "×"],
+    ["Entry", entryTxt],
+    ["Trailing stop", b.BV ? fmtFull(b.BV) + " (" + Math.round((st.trail_pct || .07) * 100) + "% trail)" : "—"],
+    ["Target", b.BU ? fmtFull(b.BU) : "—"],
+    ["Size", st.margin_pct != null ? Math.round(st.margin_pct * 100) + "% of equity as margin" : "—"],
+    ["Confidence", conf],
+  ];
+  for (const [k, v] of rows){
+    const r = document.createElement("div"); r.className = "kv";
+    const kk = document.createElement("span"); kk.className = "k"; kk.textContent = k;
+    const vv = document.createElement("span"); vv.className = "v mono"; vv.textContent = v;
+    r.append(kk, vv); box.appendChild(r);
+  }
+  const c = document.createElement("div"); c.className = "caveat";
+  c.textContent = "As of " + st.last_date + " close · stop ratchets " + (long ? "up" : "down") +
+    " with price, never loosens · signal model, no orders are placed.";
+  box.appendChild(c);
+}
+
+/* ── $300-since-1-Jul-2026 comparison chart ── */
+const REBASE_D = "2026-07-01", REBASE_V = 300;
+function rebased(pts){
+  /* pts: [{t,d,v}] daily; anchor at the first point on/after REBASE_D */
+  if (!pts || !pts.length) return null;
+  const from = pts.filter(p => p.d >= REBASE_D);
+  if (from.length < 2) return null;
+  const v0 = from[0].v;
+  if (!(v0 > 0)) return null;
+  return from.map(p => ({ t: p.t, d: p.d, v: REBASE_V * p.v / v0 }));
+}
+function draw300(){
+  const svg2 = document.getElementById("chart2"), note2 = document.getElementById("chart2Note");
+  const W2 = 640, H2 = 300, M2 = { l: 46, r: 14, t: 12, b: 26 };
+  svg2.textContent = "";
+  const el2 = (name, attrs) => { const e = document.createElementNS(NS, name);
+    for (const k in attrs) e.setAttribute(k, attrs[k]); svg2.appendChild(e); return e; };
+  const mbAll = (S.mb && S.mb.dates && S.mb.scenarios && S.mb.scenarios["Max B @50bp"] && S.mb.scenarios["Max B @50bp"].eq)
+    ? S.mb.dates.map((d, i) => ({ t: ms(d), d, v: S.mb.scenarios["Max B @50bp"].eq[i] })) : null;
+  const view = [];
+  const m1r = rebased(S.m1);  if (m1r) view.push({ key: "M1 vs M5", col: COL.m1, pts: m1r });
+  const mbr = rebased(mbAll); if (mbr) view.push({ key: "Max B @50bp", col: COL.mb, pts: mbr });
+  const lg = document.getElementById("legend2"); lg.textContent = "";
+  if (!view.length){ note2.textContent = "⚠ no curve data reachable for the rebased view."; return; }
+
+  const allV = view.flatMap(s => s.pts.map(p => p.v));
+  const lo = Math.min(...allV, REBASE_V), hi = Math.max(...allV, REBASE_V);
+  const pad = Math.max((hi - lo) * .12, 6);
+  const y0v = lo - pad, y1v = hi + pad;
+  const x0 = Math.min(...view.map(s => s.pts[0].t)), x1 = Math.max(...view.map(s => s.pts[s.pts.length - 1].t));
+  const xOf2 = t => M2.l + (t - x0) / (x1 - x0 || 1) * (W2 - M2.l - M2.r);
+  const yOf2 = v => M2.t + (1 - (v - y0v) / (y1v - y0v || 1)) * (H2 - M2.t - M2.b);
+
+  /* linear y ticks (~5) */
+  const span = y1v - y0v, rawStep = span / 4.5, mag = 10 ** Math.floor(Math.log10(rawStep));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s2 => span / s2 <= 5.5) || 10 * mag;
+  for (let v = Math.ceil(y0v / step) * step; v <= y1v + 1e-9; v += step){
+    el2("line", { x1: M2.l, x2: W2 - M2.r, y1: yOf2(v), y2: yOf2(v), stroke: COL.line, "stroke-width": 1 });
+    el2("text", { x: M2.l - 6, y: yOf2(v) + 3.5, "text-anchor": "end", fill: COL.mut, "font-size": 10,
+                  "font-family": "ui-monospace,Consolas,monospace" }).textContent = "$" + Math.round(v);
+  }
+  /* $300 start reference */
+  el2("line", { x1: M2.l, x2: W2 - M2.r, y1: yOf2(REBASE_V), y2: yOf2(REBASE_V),
+                stroke: COL.mut, "stroke-width": 1, "stroke-dasharray": "3 4", opacity: .8 });
+  for (let i = 0; i <= 4; i++){
+    const t = x0 + (x1 - x0) * i / 4, dd = new Date(t);
+    el2("text", { x: xOf2(t), y: H2 - 8, "text-anchor": i === 0 ? "start" : i === 4 ? "end" : "middle",
+                  fill: COL.mut, "font-size": 10 }).textContent = MON[dd.getUTCMonth()] + " " + dd.getUTCDate();
+  }
+  const endLabs = [];
+  for (const s of view){
+    const dPath = s.pts.map((p, i) => (i ? "L" : "M") + xOf2(p.t).toFixed(1) + " " + yOf2(p.v).toFixed(1)).join(" ");
+    el2("path", { d: dPath, fill: "none", stroke: s.col, "stroke-width": 2,
+                  "stroke-linejoin": "round", "stroke-linecap": "round" });
+    const lp = s.pts[s.pts.length - 1];
+    el2("circle", { cx: xOf2(lp.t), cy: yOf2(lp.v), r: 4.5, fill: s.col, stroke: COL.card, "stroke-width": 2 });
+    endLabs.push({ x: xOf2(lp.t), y: yOf2(lp.v), txt: "$" + Math.round(lp.v) });
+  }
+  if (endLabs.length === 2 && Math.abs(endLabs[0].y - endLabs[1].y) < 16){
+    const [a, b] = endLabs[0].y < endLabs[1].y ? [endLabs[0], endLabs[1]] : [endLabs[1], endLabs[0]];
+    a.y -= (16 - (b.y - a.y)) / 2; b.y += (16 - (b.y - a.y));
+  }
+  for (const L of endLabs)
+    el2("text", { x: L.x - 8, y: L.y - 9, "text-anchor": "end", fill: COL.ink, "font-size": 11,
+                  "font-weight": 700, "font-family": "ui-monospace,Consolas,monospace" }).textContent = L.txt;
+
+  /* legend with return since rebase (identity by swatch, numbers in ink) */
+  for (const s of view){
+    const last = s.pts[s.pts.length - 1], r = last.v / REBASE_V - 1;
+    const k = document.createElement("span"); k.className = "k";
+    const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = s.col;
+    k.appendChild(key);
+    k.appendChild(document.createTextNode(s.key + " "));
+    const bb = document.createElement("b"); bb.className = "mono";
+    bb.style.color = "var(--ink)"; bb.textContent = "$" + Math.round(last.v) + " (" + pct(r, 1) + ")";
+    k.appendChild(bb); lg.appendChild(k);
+  }
+  note2.textContent = "Both models rebased to $" + REBASE_V + " at the " + REBASE_D + " close (linear scale; dashed line = start value). " +
+    "Shapes are each model's own equity curve — M1 vs M5 leveraged account, Max B @50bp scenario — scaled, not a new backtest.";
+
+  /* crosshair + tooltip */
+  const tip2 = document.getElementById("tip2");
+  let hov2 = [];
+  const lin = (pts, t) => {
+    if (t <= pts[0].t) return pts[0].v;
+    for (let i = 1; i < pts.length; i++) if (pts[i].t >= t){
+      const a = pts[i-1], b = pts[i], f = (t - a.t) / (b.t - a.t || 1);
+      return a.v + f * (b.v - a.v);
+    }
+    return pts[pts.length - 1].v;
+  };
+  const hide2 = () => { tip2.style.display = "none"; hov2.forEach(e => e.remove()); hov2 = []; };
+  svg2.addEventListener("pointermove", ev => {
+    const r = svg2.getBoundingClientRect();
+    const px = (ev.clientX - r.left) / r.width * W2;
+    if (px < M2.l || px > W2 - M2.r) return hide2();
+    const dense = view.reduce((a, b) => a.pts.length >= b.pts.length ? a : b);
+    let best = dense.pts[0];
+    for (const p of dense.pts) if (Math.abs(xOf2(p.t) - px) < Math.abs(xOf2(best.t) - px)) best = p;
+    hov2.forEach(e => e.remove()); hov2 = [];
+    hov2.push(el2("line", { x1: xOf2(best.t), x2: xOf2(best.t), y1: M2.t, y2: H2 - M2.b, stroke: COL.mut, "stroke-width": 1 }));
+    tip2.textContent = "";
+    const dd = document.createElement("div"); dd.className = "d"; dd.textContent = fmtD(best.t); tip2.appendChild(dd);
+    for (const s of view){
+      const v = lin(s.pts, best.t);
+      hov2.push(el2("circle", { cx: xOf2(best.t), cy: yOf2(v), r: 4, fill: s.col, stroke: COL.card, "stroke-width": 2 }));
+      const rw = document.createElement("div"); rw.className = "r";
+      const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = s.col;
+      const nm = document.createElement("span"); nm.textContent = s.key.split(" @")[0];
+      const vv = document.createElement("span"); vv.className = "v mono";
+      vv.textContent = "$" + Math.round(v) + " (" + pct(v / REBASE_V - 1, 1) + ")";
+      rw.append(key, nm, vv); tip2.appendChild(rw);
+    }
+    tip2.style.display = "block";
+    const bx = tip2.getBoundingClientRect();
+    let lx = (xOf2(best.t) / W2) * r.width + 12;
+    if (lx + bx.width > r.width - 4) lx = (xOf2(best.t) / W2) * r.width - bx.width - 12;
+    tip2.style.left = lx + "px";
+    tip2.style.top = Math.max(4, (ev.clientY - r.top) - bx.height - 10) + "px";
+  });
+  svg2.addEventListener("pointerleave", hide2);
 }
 
 /* ── chart ── */
