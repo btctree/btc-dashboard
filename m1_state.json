@@ -6,8 +6,8 @@
     "BV": 0.0,
     "BU": 0.0
   },
-  "last_date": "2026-09-03",
-  "price": 81270.37,
+  "last_date": "2026-09-04",
+  "price": 79660.77,
   "regime": "TREND",
   "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
   "signal": "FLAT",
@@ -21,22 +21,22 @@
   "next_action": {
     "engine": "X",
     "levels": {
-      "sma20": 74797.21,
-      "sma50": 68167.85,
-      "boll_up": 87135.43,
-      "boll_dn": 62458.99,
-      "rsi": 70.5,
-      "macd": 3485.8,
-      "macd_signal": 3468.3
+      "sma20": 75625.95,
+      "sma50": 68498.14,
+      "boll_up": 86826.2,
+      "boll_dn": 64425.7,
+      "rsi": 54.0,
+      "macd": 3407.0,
+      "macd_signal": 3456.0
     },
-    "long_trigger": 91429.17,
+    "long_trigger": 90614.13,
     "short_trigger": null,
     "regime": "TREND",
     "bias": "UP",
-    "pivot_sma50": 68167.85,
+    "pivot_sma50": 68498.14,
     "ref_target": 81270.37,
     "ref_type": "resistance / recent high",
-    "long_condition": "price reclaims SMA50 ($68,168) with MACD turning positive",
-    "short_condition": "RSI recovers above 35 (now 71) while price stays below SMA50 ($68,168)"
+    "long_condition": "price reclaims SMA50 ($68,498) with MACD turning positive",
+    "short_condition": "RSI recovers above 35 (now 54) while price stays below SMA50 ($68,498)"
   }
 }
