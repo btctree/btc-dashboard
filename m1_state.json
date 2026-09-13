@@ -1,14 +1,14 @@
 {
   "state": {
     "BW": 0,
-    "BK": "X",
+    "BK": "Y",
     "BY": 0.0,
     "BV": 0.0,
     "BU": 0.0
   },
-  "last_date": "2026-09-11",
-  "price": 77225.7,
-  "regime": "TREND",
+  "last_date": "2026-09-12",
+  "price": 77278.73,
+  "regime": "RANGING",
   "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
   "signal": "FLAT",
   "confidence": null,
@@ -19,24 +19,25 @@
   "leverage": null,
   "margin_pct": null,
   "next_action": {
-    "engine": "X",
+    "engine": "Y",
     "levels": {
-      "sma20": 78621.54,
-      "sma50": 70438.79,
-      "boll_up": 81026.56,
-      "boll_dn": 76216.51,
-      "rsi": 47.7,
-      "macd": 2017.4,
-      "macd_signal": 2753.1
+      "sma20": 78598.77,
+      "sma50": 70681.32,
+      "boll_up": 81047.39,
+      "boll_dn": 76150.16,
+      "rsi": 46.4,
+      "macd": 1807.0,
+      "macd_signal": 2563.9
     },
     "long_trigger": null,
-    "short_trigger": 54057.99,
-    "regime": "TREND",
+    "short_trigger": 56027.08,
+    "regime": "RANGING",
     "bias": "UP",
-    "pivot_sma50": 70438.79,
-    "ref_target": 81270.37,
-    "ref_type": "resistance / recent high",
-    "long_condition": "price reclaims SMA50 ($70,439) with MACD turning positive",
-    "short_condition": "RSI recovers above 35 (now 48) while price stays below SMA50 ($70,439)"
+    "zone": "BOTTOM",
+    "peak": 81047.39,
+    "mid": 78598.77,
+    "bottom": 76150.16,
+    "long_condition": "price fades to the lower band ($76,150) with RSI turning up",
+    "short_condition": "price extends to the upper band ($81,047) with RSI turning down"
   }
 }
