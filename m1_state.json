@@ -1,42 +1,25 @@
 {
   "state": {
-    "BW": 0,
+    "BW": 1,
     "BK": "X",
-    "BY": 0.0,
-    "BV": 0.0,
-    "BU": 0.0
+    "BY": 76206.01,
+    "BV": 71067.82,
+    "BU": 78102.6
   },
   "last_date": "2026-09-17",
   "price": 76417.01,
   "regime": "TREND",
   "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
-  "signal": "FLAT",
-  "confidence": null,
+  "signal": "LONG",
+  "confidence": {
+    "score": 31,
+    "bucket": "Low"
+  },
   "bear_regime": false,
   "cutloss_pct": 0.07,
   "stop_type": "trailing",
   "trail_pct": 0.07,
-  "leverage": null,
-  "margin_pct": null,
-  "next_action": {
-    "engine": "X",
-    "levels": {
-      "sma20": 78031.16,
-      "sma50": 71932.81,
-      "boll_up": 80964.51,
-      "boll_dn": 75097.8,
-      "rsi": 29.6,
-      "macd": 879.8,
-      "macd_signal": 1620.1
-    },
-    "long_trigger": null,
-    "short_trigger": 66864.88,
-    "regime": "TREND",
-    "bias": "UP",
-    "pivot_sma50": 71932.81,
-    "ref_target": 81270.37,
-    "ref_type": "resistance / recent high",
-    "long_condition": "price reclaims SMA50 ($71,933) with MACD turning positive",
-    "short_condition": "RSI recovers above 35 (now 30) while price stays below SMA50 ($71,933)"
-  }
+  "leverage": 5.0,
+  "margin_pct": 0.45,
+  "next_action": null
 }
