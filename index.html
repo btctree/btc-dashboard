@@ -190,10 +190,14 @@ const fmtFull = v => "$" + Math.round(v).toLocaleString("en-US");
 const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmtD = t => { const x = new Date(t); return MON[x.getUTCMonth()] + " " + x.getUTCDate() + ", " + x.getUTCFullYear(); };
 const pct = (v, dp=0) => (v >= 0 ? "+" : "") + (v * 100).toFixed(dp) + "%";
+const fmtPctC = r => { const p = (r - 1) * 100, a = Math.abs(p), s = p >= 0 ? "+" : "-";
+  return a >= 9.995e5 ? s + (a/1e6).toFixed(a >= 9.995e6 ? 0 : 1) + "M%"
+       : a >= 999.5   ? s + (a/1e3).toFixed(a >= 9995 ? 0 : 1) + "K%"
+       : s + a.toFixed(a >= 10 ? 0 : 1) + "%"; };
 
 /* ── state ── */
 const S = { m1: null, m1acts: null, m1state: null, m1live: false, mb: null };   // loaded data
-let range = "ALL", mode = "BOTH", tradeSrc = "MB";
+let range = "ALL", mode = "BOTH", tradeSrc = "MB", disp = "$";
 
 /* ── boot: fetch everything, live-first with static fallback, degrade per-section ── */
 const J = u => fetch(u).then(r => { if (!r.ok) throw 0; return r.json(); });
@@ -559,6 +563,13 @@ function draw(){
     }).filter(s => s.pts.length > 1);
   }
   if (!view.length){ note.textContent = "no data in this window"; renderLegend(); return; }
+  if (disp === "%"){
+    /* rebase each model at its own first visible point -> relative comparison */
+    view = view.map(s => {
+      const v0 = s.pts[0].v;
+      return { ...s, v0, pts: s.pts.map(p => ({ ...p, o: p.v, v: p.v / v0 })) };
+    });
+  }
   const allV = view.flatMap(s => s.pts.map(p => p.v));
   const allT = view.flatMap(s => [s.pts[0].t, s.pts[s.pts.length - 1].t]);
   const lo = Math.min(...allV) * .85, hi = Math.max(...allV) * 1.25;
@@ -569,7 +580,7 @@ function draw(){
   for (const v of logTicks(lo, hi)){
     el("line", { x1: M.l, x2: W - M.r, y1: yOf(v), y2: yOf(v), stroke: COL.line, "stroke-width": 1 });
     el("text", { x: M.l - 6, y: yOf(v) + 3.5, "text-anchor": "end", fill: COL.mut, "font-size": 10,
-                 "font-family": "ui-monospace,Consolas,monospace" }).textContent = fmt$(v);
+                 "font-family": "ui-monospace,Consolas,monospace" }).textContent = disp === "%" ? fmtPctC(v) : fmt$(v);
   }
   for (let i = 0; i <= 5; i++){
     const t = x0 + (x1 - x0) * i / 5, d = new Date(t);
@@ -585,7 +596,7 @@ function draw(){
                  "stroke-linejoin": "round", "stroke-linecap": "round" });
     const lp = s.pts[s.pts.length - 1];
     el("circle", { cx: xOf(lp.t), cy: yOf(lp.v), r: 4.5, fill: s.col, stroke: COL.card, "stroke-width": 2 });
-    endLabs.push({ x: xOf(lp.t), y: yOf(lp.v), txt: fmt$(lp.v) });
+    endLabs.push({ x: xOf(lp.t), y: yOf(lp.v), txt: disp === "%" ? fmtPctC(lp.v) : fmt$(lp.v) });
   }
   /* collision-nudge end labels apart */
   if (endLabs.length === 2 && Math.abs(endLabs[0].y - endLabs[1].y) < 16){
@@ -597,7 +608,8 @@ function draw(){
                  "font-weight": 700, "font-family": "ui-monospace,Consolas,monospace" }).textContent = L.txt;
 
   window.__view = view;
-  note.textContent = "Log scale. M1 vs M5 is a sparse change-point curve" +
+  note.textContent = (disp === "%" ? "Percent change since the window start (each model rebased at its own first visible point), log scale. "
+                                   : "Log scale. ") + "M1 vs M5 is a sparse change-point curve" +
     (S.m1 ? " (to " + S.m1[S.m1.length-1].d + (S.m1live ? ", live daily" : ", static") + ")" : "") +
     (mb ? "; Max B @50bp is daily" + (view.length && range === "ALL" ? " (downsampled for drawing)" : "") + ", live from btc-power." : ".");
   renderLegend();
@@ -617,6 +629,12 @@ function chips(){
     b.className = "chip" + (range === id ? " on" : ""); b.textContent = id;
     b.onclick = () => { range = id; chips(); draw(); }; row.appendChild(b);
   }
+  const pb = document.createElement("button");
+  pb.className = "chip" + (disp === "%" ? " on" : ""); pb.textContent = "%";
+  pb.title = "Show % change since the window start (for comparison)";
+  pb.setAttribute("aria-pressed", disp === "%" ? "true" : "false");
+  pb.onclick = () => { disp = disp === "%" ? "$" : "%"; chips(); draw(); };
+  row.appendChild(pb);
   const sp = document.createElement("span"); sp.className = "spacer"; row.appendChild(sp);
   for (const [id, lab] of MODES){
     const b = document.createElement("button");
@@ -646,7 +664,8 @@ svg.addEventListener("pointermove", ev => {
     const rw = document.createElement("div"); rw.className = "r";
     const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = s.col;
     const nm = document.createElement("span"); nm.textContent = s.key.split(" @")[0];
-    const vv = document.createElement("span"); vv.className = "v mono"; vv.textContent = fmtFull(v);
+    const vv = document.createElement("span"); vv.className = "v mono";
+    vv.textContent = disp === "%" ? fmtPctC(v) + " · " + fmt$(v * s.v0) : fmtFull(v);
     rw.append(key, nm, vv); tip.appendChild(rw);
   }
   tip.style.display = "block";
