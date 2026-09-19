@@ -669,10 +669,10 @@ function renderH2H(){
   const mbM = S.mb && S.mb.scenarios && S.mb.scenarios["Max B @50bp"] ? S.mb.scenarios["Max B @50bp"].metrics : null;
   const rows = [
     ["Final (from $500)", m1Final ? fmt$(m1Final) : "—", mbM ? fmt$(mbM.final) : "—"],
-    ["CAGR", "160%/yr", mbM ? Math.round(mbM.cagr * 100) + "%/yr" : "—"],
-    ["Sharpe", "1.30", mbM ? mbM.sharpe.toFixed(2) : "—"],
+    ["CAGR", "201%/yr", mbM ? Math.round(mbM.cagr * 100) + "%/yr" : "—"],
+    ["Sharpe", "1.38", mbM ? mbM.sharpe.toFixed(2) : "—"],
     ["Max drawdown", "−44%", mbM ? "−" + Math.round(Math.abs(mbM.maxdd) * 100) + "%" : "—"],
-    ["Calmar", "3.61", mbM ? (mbM.cagr / Math.abs(mbM.maxdd)).toFixed(2) : "—"],
+    ["Calmar", "4.54", mbM ? (mbM.cagr / Math.abs(mbM.maxdd)).toFixed(2) : "—"],
     ["Liquidations", "0", (S.mb && S.mb.scenarios) ? String(S.mb.scenarios["Max B @50bp"].liq) : "—"],
     ["Leverage", "5× long / 2× short", "up to ~1.8× equity, dynamic"],
     ["Costs", "real fees + funding", "50 bp slippage/side"],
