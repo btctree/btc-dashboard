@@ -175,17 +175,17 @@
       account's real slippage shows in the Trades tab as fills accumulate.</div>
   </div>
 
+  <div class="card" id="realtradescard">
+    <h2>Real account trades — actual fills &amp; fees</h2>
+    <table id="realtrades"></table>
+    <div class="caveat" id="realtradeNote"></div>
+  </div>
+
   <div class="card" id="tradescard">
     <h2>Model trades</h2>
     <div class="filters" id="tradeToggle"></div>
     <table id="trades"></table>
     <div class="caveat" id="tradeNote"></div>
-  </div>
-
-  <div class="card" id="realtradescard">
-    <h2>Real account trades — actual fills &amp; fees</h2>
-    <table id="realtrades"></table>
-    <div class="caveat" id="realtradeNote"></div>
   </div>
 
   <footer>
@@ -445,20 +445,26 @@ function drawReal(){
   }
   if (!real){ note2.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — the chart resumes when it returns."; return; }
 
-  /* Max B @50bp simulation rebased to the SAME start value at the same date */
+  /* Max B @50bp simulation rebased to the SAME start value at the same date.
+     Base = Max B's last daily close BEFORE the start, so its very first
+     post-start close already draws a line from the shared anchor point. */
   let sim = null;
   if (S.mb && S.mb.dates && S.mb.scenarios && S.mb.scenarios["Max B @50bp"]){
     const eq = S.mb.scenarios["Max B @50bp"].eq;
+    let base = null;
     const pts = [];
     for (let i = 0; i < S.mb.dates.length; i++){
       const t = ms(S.mb.dates[i]);
-      if (t >= REAL_START_TS && eq[i] > 0) pts.push({ t, v: eq[i] });
+      if (!(eq[i] > 0)) continue;
+      if (t < REAL_START_TS){ base = eq[i]; continue; }
+      pts.push({ t, v: eq[i] });
     }
-    if (pts.length) sim = pts.map(p => ({ t: p.t, v: p.v / pts[0].v * anchor }));
+    if (base != null)
+      sim = [{ t: anchorT, v: anchor }, ...pts.map(p => ({ t: p.t, v: anchor * p.v / base }))];
   }
 
   const view = [{ key: "M1 real account", col: COL.m1, pts: real }];
-  if (sim && sim.length > 1) view.push({ key: "Max B @50bp (sim)", col: COL.mb, pts: sim });
+  if (sim) view.push({ key: "Max B @50bp (sim)", col: COL.mb, pts: sim });
   /* BTC buy-and-hold: same start value put into spot BTC, no margin, no strategy */
   if (S.btcRT && S.btcRT.length > 1){
     const inWin = S.btcRT.filter(p => p.t >= REAL_START_TS);
@@ -535,9 +541,9 @@ function drawReal(){
   }
   note2.textContent = "Blue = the ACTUAL Binance account equity (hourly snapshots, net of ALL real costs — " +
     "trading fees, margin borrow interest, funding), from $" + anchor.toFixed(2) + " at " + fmtD(anchorT) + ". " +
-    "Amber = the Max B @50bp backtest simulation rebased to the same start (paper, not real fills). " +
-    "Gray = the same start value held in spot BTC — no margin, no strategy. Day one shows short lines; " +
-    "they grow as snapshots accumulate.";
+    "Amber = the Max B @50bp backtest simulation rebased to the same start (paper, not real fills); " +
+    "it extends at Max B's daily closes, so it stays a dot until the first close after 20 Sep. " +
+    "Gray = the same start value held in spot BTC — no margin, no strategy.";
 
   /* crosshair + tooltip */
   const tip2 = document.getElementById("tip2");
@@ -931,7 +937,7 @@ function renderRealTrades(){
   t.textContent = "";
   if (!S.rp){ note.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — actual fills unavailable."; return; }
   const hr = t.insertRow();
-  for (const h of ["Side","Opened → Closed","Gross P&L","Fees","Interest","Net P&L"]){
+  for (const h of ["Side","Opened → Closed","Entry / Exit","Gross P&L","Fees","Interest","Net P&L"]){
     const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
   const eqHist = Array.isArray(S.rp.equity_history)
     ? S.rp.equity_history.map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
@@ -940,12 +946,16 @@ function renderRealTrades(){
   const eqAt = ts => { if (!isFinite(ts) || !eqHist.length) return null;
     let best = null; for (const p of eqHist){ if (p.t <= ts) best = p; else break; }
     return best ? best.v : eqHist[0].v; };
+  /* the record starts at the M1 takeover — pre-handover activity is excluded */
   const rows = [];
   if (S.rp.open) rows.push(Object.assign({}, S.rp.open, { _open: true }));
-  for (const tr of (S.rp.recent_closed || []).slice().reverse()) rows.push(tr);
-  if (!rows.length){ note.textContent = "No trades on the account record yet — the first M1 fill appears after the tracker's next hourly update."; return; }
-  let intPending = false, intActual = false;
-  const dt = x => x ? String(x).replace(" UTC", "") : "—";
+  for (const tr of (S.rp.recent_closed || []).slice().reverse())
+    if (parseRpTs(tr.closed) >= REAL_START_TS) rows.push(tr);
+  if (!rows.length){ note.textContent = "No real trades since 20 Sep 2026 yet — the record starts at the M1 takeover " +
+    "(the pre-handover Max B-era trade is excluded). The first M1 fill (order ids m1tr-…) appears after the " +
+    "tracker's next hourly update."; return; }
+  let intPending = false, intActual = false, pxPending = false, intSum = 0;
+  const dt = x => x ? String(x).replace(" UTC", "").replace(/^20\d\d-/, "") : "—";
   const money = v => (v >= 0 ? "+$" : "−$") + Math.abs(v).toFixed(2);
   const val = (r, v, base, signed, extra) => { const c = r.insertCell();
     c.className = "mono" + (signed && v != null ? (v >= 0 ? " pos" : " neg") : "");
@@ -966,10 +976,19 @@ function renderRealTrades(){
     const o2 = document.createElement("div"); o2.className = "sub";
     o2.textContent = "→ " + (tr._open ? "open" : dt(tr.closed));
     c1.append(o1, o2);
+    /* actual average fill prices, once the tracker publishes them */
+    const eIn = tr.entry_px != null ? +tr.entry_px : (tr.avg_entry_px != null ? +tr.avg_entry_px : null);
+    const eOut = tr.exit_px != null ? +tr.exit_px : (tr.avg_exit_px != null ? +tr.avg_exit_px : null);
+    if (eIn == null) pxPending = true;
+    const cp = r.insertCell(); cp.className = "mono";
+    const p1 = document.createElement("div"); p1.textContent = eIn != null ? fmtFull(eIn) : "—†";
+    const p2 = document.createElement("div"); p2.className = "sub";
+    p2.textContent = "→ " + (tr._open ? "open" : (eOut != null ? fmtFull(eOut) : "—†"));
+    cp.append(p1, p2);
     const eq0 = eqAt(parseRpTs(tr.opened));
     const fees = tr.fees_usdt != null ? +tr.fees_usdt : null;
     const hasInt = tr.interest_usdt != null;
-    if (hasInt) intActual = true; else intPending = true;
+    if (hasInt){ intActual = true; intSum += +tr.interest_usdt; } else intPending = true;
     const intr = hasInt ? +tr.interest_usdt : null;
     /* realized_usd comes from the fills: it is AFTER trading fees but BEFORE interest
        (interest is charged to the account hourly and never appears in fills) */
@@ -982,15 +1001,14 @@ function renderRealTrades(){
     const ci = val(r, intr, eq0, false); if (!hasInt) ci.textContent = "—*";
     val(r, netv, eq0, true, tr._open ? " mtm" : "");
   }
-  let n = "ACTUAL Binance account record (times UTC; includes the pre-handover Max B-era trade). " +
+  let n = "ACTUAL Binance account record since 20 Sep 2026 (times UTC; pre-handover activity excluded). " +
     "$ = real fills; % = vs the account equity when the trade opened. Fees = the platform trading fees " +
     "Binance charged on the fills. Gross = P&L before costs; Net = after fees and interest.";
   if (intActual) n += " Interest = actual margin borrow interest over the trade (Binance interest history; " +
-    "charged to the account hourly, not part of the fills).";
+    "charged to the account hourly, not part of the fills). Interest since 20 Sep: $" + intSum.toFixed(2) + ".";
   if (intPending) n += " *Interest breakdown pending from the account tracker — that row's Net is after " +
     "fees only; the interest itself is already inside the account equity above.";
-  if (S.rp.total_interest_usdt != null) n += " Total interest paid to date: $" + (+S.rp.total_interest_usdt).toFixed(2) + ".";
-  n += " New M1 fills (order ids m1tr-…) appear automatically, incl. their actual slippage vs the model price.";
+  if (pxPending) n += " †Average fill prices pending from the account tracker.";
   note.textContent = n;
 }
 
