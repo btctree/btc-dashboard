@@ -84,6 +84,8 @@
   td{padding:6px; text-align:right; border-bottom:1px solid var(--line); font-variant-numeric:tabular-nums}
   th:first-child,td:first-child{text-align:left}
   tr:last-child td{border-bottom:none}
+  #tradescard,#realtradescard{overflow-x:auto}
+  #trades th,#trades td,#realtrades th,#realtrades td{white-space:nowrap}
   .pos{color:var(--grn); font-weight:600} .neg{color:var(--red); font-weight:600}
   .sub{color:var(--mut); font-size:10.5px}
   .dirsm{font-size:9.5px; font-weight:700; letter-spacing:.06em; border-radius:5px; padding:2px 6px}
@@ -102,6 +104,11 @@
     <div class="brand">M1vsM5<span class="x">×</span>MAX B<small>BTC MODEL COMPARISON</small></div>
     <div class="pricechip"><div class="p mono" id="livepx">—</div><div class="s" id="pxsub">BTC/USDT</div></div>
   </header>
+
+  <div class="filters" id="tabbar" style="margin-bottom:12px">
+    <button class="chip on" data-tab="overview">Overview</button>
+    <button class="chip" data-tab="trades">Trades</button>
+  </div>
 
   <div class="sigs">
     <div class="sig">
@@ -136,10 +143,11 @@
   </div>
 
   <div class="card">
-    <h2>$300 invested — since 1 Jul 2026</h2>
+    <h2>Real account vs Max B sim — from 20 Sep 2026</h2>
+    <div class="filters" id="realDisp"></div>
     <div class="legend" id="legend2"></div>
     <div class="chartbox">
-      <svg id="chart2" viewBox="0 0 640 300" role="img" aria-label="Both models rebased to a $300 start on 1 July 2026, linear scale"></svg>
+      <svg id="chart2" viewBox="0 0 640 300" role="img" aria-label="Actual account equity versus the Max B simulation, both from the same start value on 20 September 2026, linear scale"></svg>
       <div class="tip" id="tip2"></div>
     </div>
     <div class="caveat" id="chart2Note">loading…</div>
@@ -160,10 +168,24 @@
   </div>
 
   <div class="card">
-    <h2>Recent trades</h2>
+    <h2>M1 vs M5 — slippage scenarios</h2>
+    <table id="scenM1"></table>
+    <div class="caveat">1-minute intraday A/B validated 2026-09-19 (hold-through-neutral rule; slippage
+      applied to every stop fill). Static results anchored to the published $533M backtest; the live
+      account's real slippage shows in the Trades tab as fills accumulate.</div>
+  </div>
+
+  <div class="card" id="tradescard">
+    <h2>Model trades</h2>
     <div class="filters" id="tradeToggle"></div>
     <table id="trades"></table>
     <div class="caveat" id="tradeNote"></div>
+  </div>
+
+  <div class="card" id="realtradescard">
+    <h2>Real account trades — actual fills &amp; fees</h2>
+    <table id="realtrades"></table>
+    <div class="caveat" id="realtradeNote"></div>
   </div>
 
   <footer>
@@ -178,9 +200,15 @@
 "use strict";
 /* ── constants ── */
 const POWER_URL = "https://btctree.github.io/btc-power/results_live.json";
+const REAL_START_TS = Date.UTC(2026, 8, 20);          // real-account tracking starts 2026-09-20 00:00 UTC
+const KLINE_D_URL = "https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1d&limit=1000";
+const KLINE_RT_URL = (() => { const e = Date.now() - REAL_START_TS;
+  const iv = e < 35 * 864e5 ? "1h" : e < 140 * 864e5 ? "4h" : "1d";
+  return "https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=" + iv +
+         "&startTime=" + REAL_START_TS + "&limit=1000"; })();
 const PRICE_URL = "https://data-api.binance.vision/api/v3/ticker/price?symbol=BTCUSDT";
 const COL = { m1: "#3b8de8", mb: "#bc7d1e", grn: "#2bd576", red: "#ff5d5d",
-              line: "#242c3a", mut: "#8b98a9", ink: "#e8edf4", card: "#161b26" };
+              line: "#242c3a", mut: "#8b98a9", ink: "#e8edf4", card: "#161b26", btc: "#9aa7b8" };
 const DAY = 864e5;
 const ms = d => Date.parse(d + "T00:00:00Z");
 const fmt$ = v => v >= 1e6 ? "$" + (v/1e6).toFixed(v >= 1e7 ? 0 : 1) + "M"
@@ -196,8 +224,8 @@ const fmtPctC = r => { const p = (r - 1) * 100, a = Math.abs(p), s = p >= 0 ? "+
        : s + a.toFixed(a >= 10 ? 0 : 1) + "%"; };
 
 /* ── state ── */
-const S = { m1: null, m1acts: null, m1state: null, m1live: false, mb: null };   // loaded data
-let range = "ALL", mode = "BOTH", tradeSrc = "MB", disp = "$";
+const S = { m1: null, m1acts: null, m1state: null, m1live: false, mb: null, rp: null, btc: null, btcRT: null };   // loaded data
+let range = "ALL", mode = "BOTH", tradeSrc = "MB", disp = "$", realMode = "$";
 
 /* ── boot: fetch everything, live-first with static fallback, degrade per-section ── */
 const J = u => fetch(u).then(r => { if (!r.ok) throw 0; return r.json(); });
@@ -209,7 +237,11 @@ Promise.allSettled([
   J("./engine_actions_hist.json"),
   J(POWER_URL + "?t=" + Date.now()),
   J(PRICE_URL),
-]).then(([cl, al, sl, ch, ah, p, px]) => {
+  J("https://btctree.github.io/btc-power/real_pnl.json?t=" + Date.now()),
+  J("./btc_price_hist.json"),                       // 2014 -> 2026-06 daily closes (CoinGecko-era splice)
+  J(KLINE_D_URL),                                   // Binance daily top-up (covers the last ~2.7y)
+  J(KLINE_RT_URL),                                  // intraday since the real-account start
+]).then(([cl, al, sl, ch, ah, p, px, rp, bh, bk, bi]) => {
   const curve = cl.status === "fulfilled" ? cl.value : (ch.status === "fulfilled" ? ch.value : null);
   S.m1live = cl.status === "fulfilled";
   if (curve) S.m1 = curve.map(q => ({ t: ms(q.d), d: q.d, v: q.n }));
@@ -217,7 +249,15 @@ Promise.allSettled([
   S.m1state = sl.status === "fulfilled" ? sl.value : null;
   if (p.status === "fulfilled") S.mb = p.value;
   renderPrice(px.status === "fulfilled" ? +px.value.price : null);
-  renderSignals(); renderM1Position(); renderPosition(); chips(); draw(); draw300(); renderH2H(); renderScen(); tradeChips(); renderTrades();
+  S.rp = rp.status === "fulfilled" ? rp.value : null;
+  const pmap = new Map();
+  if (bh.status === "fulfilled") for (const q of bh.value) pmap.set(q[0], +q[1]);
+  if (bk.status === "fulfilled") for (const k of bk.value) pmap.set(new Date(k[0]).toISOString().slice(0, 10), +k[4]);
+  S.btc = pmap.size > 10 ? [...pmap.entries()].map(([d, v]) => ({ t: ms(d), d, v })).sort((a, b) => a.t - b.t) : null;
+  S.btcRT = bi.status === "fulfilled"
+    ? bi.value.map(k => ({ t: k[6], v: +k[4] })).filter(q => isFinite(q.t) && q.v > 0) : null;
+  renderSignals(); renderM1Position(); renderPosition(); chips(); draw(); realChips(); drawReal(); renderH2H();
+  renderScen(); renderScenM1(); tradeChips(); renderTrades(); renderRealTrades(); initTabs();
 });
 
 function renderPrice(p){
@@ -375,85 +415,129 @@ function renderM1Position(){
   box.appendChild(c);
 }
 
-/* ── $300-since-1-Jul-2026 comparison chart ── */
-const REBASE_D = "2026-07-01", REBASE_V = 300;
-function rebased(pts){
-  /* pts: [{t,d,v}] daily; anchor at the first point on/after REBASE_D */
-  if (!pts || !pts.length) return null;
-  const from = pts.filter(p => p.d >= REBASE_D);
-  if (from.length < 2) return null;
-  const v0 = from[0].v;
-  if (!(v0 > 0)) return null;
-  return from.map(p => ({ t: p.t, d: p.d, v: REBASE_V * p.v / v0 }));
+/* ── real account vs Max B simulation — from 20 Sep 2026 ── */
+function parseRpTs(t){ return Date.parse(String(t).replace(" UTC", "Z").replace(" ", "T")); }
+function realChips(){
+  const row = document.getElementById("realDisp"); row.textContent = "";
+  for (const m of ["$", "%"]){
+    const b = document.createElement("button");
+    b.className = "chip" + (realMode === m ? " on" : ""); b.textContent = m;
+    b.setAttribute("aria-pressed", realMode === m ? "true" : "false");
+    b.onclick = () => { realMode = m; realChips(); drawReal(); }; row.appendChild(b);
+  }
 }
-function draw300(){
+function drawReal(){
   const svg2 = document.getElementById("chart2"), note2 = document.getElementById("chart2Note");
-  const W2 = 640, H2 = 300, M2 = { l: 46, r: 14, t: 12, b: 26 };
+  const W2 = 640, H2 = 300, M2 = { l: 50, r: 14, t: 12, b: 26 };
   svg2.textContent = "";
   const el2 = (name, attrs) => { const e = document.createElementNS(NS, name);
     for (const k in attrs) e.setAttribute(k, attrs[k]); svg2.appendChild(e); return e; };
-  const mbAll = (S.mb && S.mb.dates && S.mb.scenarios && S.mb.scenarios["Max B @50bp"] && S.mb.scenarios["Max B @50bp"].eq)
-    ? S.mb.dates.map((d, i) => ({ t: ms(d), d, v: S.mb.scenarios["Max B @50bp"].eq[i] })) : null;
-  const view = [];
-  const m1r = rebased(S.m1);  if (m1r) view.push({ key: "M1 vs M5", col: COL.m1, pts: m1r });
-  const mbr = rebased(mbAll); if (mbr) view.push({ key: "Max B @50bp", col: COL.mb, pts: mbr });
   const lg = document.getElementById("legend2"); lg.textContent = "";
-  if (!view.length){ note2.textContent = "⚠ no curve data reachable for the rebased view."; return; }
 
-  const allV = view.flatMap(s => s.pts.map(p => p.v));
-  const lo = Math.min(...allV, REBASE_V), hi = Math.max(...allV, REBASE_V);
-  const pad = Math.max((hi - lo) * .12, 6);
+  /* the ACTUAL account: hourly equity snapshots from the shared account tracker */
+  let real = null, anchor = null, anchorT = null;
+  if (S.rp && Array.isArray(S.rp.equity_history)){
+    const pts = S.rp.equity_history
+      .map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
+      .filter(p => isFinite(p.t) && p.t >= REAL_START_TS && p.v > 0)
+      .sort((a, b) => a.t - b.t);
+    if (pts.length){ real = pts; anchor = pts[0].v; anchorT = pts[0].t; }
+  }
+  if (!real){ note2.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — the chart resumes when it returns."; return; }
+
+  /* Max B @50bp simulation rebased to the SAME start value at the same date */
+  let sim = null;
+  if (S.mb && S.mb.dates && S.mb.scenarios && S.mb.scenarios["Max B @50bp"]){
+    const eq = S.mb.scenarios["Max B @50bp"].eq;
+    const pts = [];
+    for (let i = 0; i < S.mb.dates.length; i++){
+      const t = ms(S.mb.dates[i]);
+      if (t >= REAL_START_TS && eq[i] > 0) pts.push({ t, v: eq[i] });
+    }
+    if (pts.length) sim = pts.map(p => ({ t: p.t, v: p.v / pts[0].v * anchor }));
+  }
+
+  const view = [{ key: "M1 real account", col: COL.m1, pts: real }];
+  if (sim && sim.length > 1) view.push({ key: "Max B @50bp (sim)", col: COL.mb, pts: sim });
+  /* BTC buy-and-hold: same start value put into spot BTC, no margin, no strategy */
+  if (S.btcRT && S.btcRT.length > 1){
+    const inWin = S.btcRT.filter(p => p.t >= REAL_START_TS);
+    if (inWin.length > 1){
+      const b0 = inWin[0].v;
+      view.push({ key: "BTC hold", col: COL.btc, pts: inWin.map(p => ({ t: p.t, v: anchor * p.v / b0 })) });
+    }
+  }
+
+  const toD = v => realMode === "%" ? (v / anchor - 1) * 100 : v;   // display transform
+  const fromD = v => realMode === "%" ? anchor * (1 + v / 100) : v;
+  const vw = view.map(sr => ({ ...sr, pts: sr.pts.map(p => ({ t: p.t, v: toD(p.v) })) }));
+  const anchorD = toD(anchor);
+
+  const allV = vw.flatMap(sr => sr.pts.map(p => p.v));
+  const lo = Math.min(...allV, anchorD), hi = Math.max(...allV, anchorD);
+  const pad = Math.max((hi - lo) * .12, realMode === "%" ? 0.08 : Math.max(2, anchor * 0.01));
   const y0v = lo - pad, y1v = hi + pad;
-  const x0 = Math.min(...view.map(s => s.pts[0].t)), x1 = Math.max(...view.map(s => s.pts[s.pts.length - 1].t));
+  const x0 = REAL_START_TS;
+  const x1 = Math.max(...vw.map(sr => sr.pts[sr.pts.length - 1].t), REAL_START_TS + DAY);
   const xOf2 = t => M2.l + (t - x0) / (x1 - x0 || 1) * (W2 - M2.l - M2.r);
   const yOf2 = v => M2.t + (1 - (v - y0v) / (y1v - y0v || 1)) * (H2 - M2.t - M2.b);
 
   /* linear y ticks (~5) */
   const span = y1v - y0v, rawStep = span / 4.5, mag = 10 ** Math.floor(Math.log10(rawStep));
   const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s2 => span / s2 <= 5.5) || 10 * mag;
+  const tickLab = v => realMode === "%" ? (v > 0 ? "+" : "") + v.toFixed(step < 1 ? 1 : 0) + "%"
+                                        : "$" + Math.round(v);
   for (let v = Math.ceil(y0v / step) * step; v <= y1v + 1e-9; v += step){
     el2("line", { x1: M2.l, x2: W2 - M2.r, y1: yOf2(v), y2: yOf2(v), stroke: COL.line, "stroke-width": 1 });
     el2("text", { x: M2.l - 6, y: yOf2(v) + 3.5, "text-anchor": "end", fill: COL.mut, "font-size": 10,
-                  "font-family": "ui-monospace,Consolas,monospace" }).textContent = "$" + Math.round(v);
+                  "font-family": "ui-monospace,Consolas,monospace" }).textContent = tickLab(v);
   }
-  /* $300 start reference */
-  el2("line", { x1: M2.l, x2: W2 - M2.r, y1: yOf2(REBASE_V), y2: yOf2(REBASE_V),
+  /* start-value reference */
+  el2("line", { x1: M2.l, x2: W2 - M2.r, y1: yOf2(anchorD), y2: yOf2(anchorD),
                 stroke: COL.mut, "stroke-width": 1, "stroke-dasharray": "3 4", opacity: .8 });
   for (let i = 0; i <= 4; i++){
     const t = x0 + (x1 - x0) * i / 4, dd = new Date(t);
     el2("text", { x: xOf2(t), y: H2 - 8, "text-anchor": i === 0 ? "start" : i === 4 ? "end" : "middle",
                   fill: COL.mut, "font-size": 10 }).textContent = MON[dd.getUTCMonth()] + " " + dd.getUTCDate();
   }
+  const fmA = v => realMode === "%" ? (v >= 0 ? "+" : "") + v.toFixed(2) + "%" : "$" + v.toFixed(2);
   const endLabs = [];
-  for (const s of view){
-    const dPath = s.pts.map((p, i) => (i ? "L" : "M") + xOf2(p.t).toFixed(1) + " " + yOf2(p.v).toFixed(1)).join(" ");
-    el2("path", { d: dPath, fill: "none", stroke: s.col, "stroke-width": 2,
-                  "stroke-linejoin": "round", "stroke-linecap": "round" });
-    const lp = s.pts[s.pts.length - 1];
-    el2("circle", { cx: xOf2(lp.t), cy: yOf2(lp.v), r: 4.5, fill: s.col, stroke: COL.card, "stroke-width": 2 });
-    endLabs.push({ x: xOf2(lp.t), y: yOf2(lp.v), txt: "$" + Math.round(lp.v) });
+  for (const sr of vw){
+    if (sr.pts.length > 1){
+      const dPath = sr.pts.map((p, i) => (i ? "L" : "M") + xOf2(p.t).toFixed(1) + " " + yOf2(p.v).toFixed(1)).join(" ");
+      el2("path", { d: dPath, fill: "none", stroke: sr.col, "stroke-width": 2,
+                    "stroke-linejoin": "round", "stroke-linecap": "round" });
+    }
+    const lp = sr.pts[sr.pts.length - 1];
+    el2("circle", { cx: xOf2(lp.t), cy: yOf2(lp.v), r: 4.5, fill: sr.col, stroke: COL.card, "stroke-width": 2 });
+    endLabs.push({ x: xOf2(lp.t), y: yOf2(lp.v), txt: fmA(lp.v) });
   }
-  if (endLabs.length === 2 && Math.abs(endLabs[0].y - endLabs[1].y) < 16){
-    const [a, b] = endLabs[0].y < endLabs[1].y ? [endLabs[0], endLabs[1]] : [endLabs[1], endLabs[0]];
-    a.y -= (16 - (b.y - a.y)) / 2; b.y += (16 - (b.y - a.y));
-  }
+  endLabs.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < endLabs.length; i++)
+    if (endLabs[i].y - endLabs[i - 1].y < 14) endLabs[i].y = endLabs[i - 1].y + 14;
   for (const L of endLabs)
-    el2("text", { x: L.x - 8, y: L.y - 9, "text-anchor": "end", fill: COL.ink, "font-size": 11,
-                  "font-weight": 700, "font-family": "ui-monospace,Consolas,monospace" }).textContent = L.txt;
+    el2("text", { x: Math.max(L.x - 8, M2.l + 60), y: Math.max(L.y - 9, M2.t + 10), "text-anchor": "end",
+                  fill: COL.ink, "font-size": 11, "font-weight": 700,
+                  "font-family": "ui-monospace,Consolas,monospace" }).textContent = L.txt;
 
-  /* legend with return since rebase (identity by swatch, numbers in ink) */
-  for (const s of view){
-    const last = s.pts[s.pts.length - 1], r = last.v / REBASE_V - 1;
+  /* legend with $ and % (both always) */
+  for (const sr of view){
+    const last = sr.pts[sr.pts.length - 1], r = last.v / anchor - 1;
     const k = document.createElement("span"); k.className = "k";
-    const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = s.col;
+    const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = sr.col;
     k.appendChild(key);
-    k.appendChild(document.createTextNode(s.key + " "));
+    k.appendChild(document.createTextNode(sr.key + " "));
     const bb = document.createElement("b"); bb.className = "mono";
-    bb.style.color = "var(--ink)"; bb.textContent = "$" + Math.round(last.v) + " (" + pct(r, 1) + ")";
+    bb.style.color = "var(--ink)";
+    bb.textContent = realMode === "%" ? pct(r, 2) + " · $" + last.v.toFixed(2)
+                                      : "$" + last.v.toFixed(2) + " (" + pct(r, 2) + ")";
     k.appendChild(bb); lg.appendChild(k);
   }
-  note2.textContent = "Both models rebased to $" + REBASE_V + " at the " + REBASE_D + " close (linear scale; dashed line = start value). " +
-    "Shapes are each model's own equity curve — M1 vs M5 leveraged account, Max B @50bp scenario — scaled, not a new backtest.";
+  note2.textContent = "Blue = the ACTUAL Binance account equity (hourly snapshots, net of ALL real costs — " +
+    "trading fees, margin borrow interest, funding), from $" + anchor.toFixed(2) + " at " + fmtD(anchorT) + ". " +
+    "Amber = the Max B @50bp backtest simulation rebased to the same start (paper, not real fills). " +
+    "Gray = the same start value held in spot BTC — no margin, no strategy. Day one shows short lines; " +
+    "they grow as snapshots accumulate.";
 
   /* crosshair + tooltip */
   const tip2 = document.getElementById("tip2");
@@ -466,26 +550,30 @@ function draw300(){
     }
     return pts[pts.length - 1].v;
   };
+  const fmtDT = t => { const x = new Date(t);
+    return MON[x.getUTCMonth()] + " " + x.getUTCDate() + ", " +
+           String(x.getUTCHours()).padStart(2, "0") + ":" + String(x.getUTCMinutes()).padStart(2, "0") + " UTC"; };
   const hide2 = () => { tip2.style.display = "none"; hov2.forEach(e => e.remove()); hov2 = []; };
   svg2.addEventListener("pointermove", ev => {
     const r = svg2.getBoundingClientRect();
-    const px = (ev.clientX - r.left) / r.width * W2;
-    if (px < M2.l || px > W2 - M2.r) return hide2();
-    const dense = view.reduce((a, b) => a.pts.length >= b.pts.length ? a : b);
+    const px2 = (ev.clientX - r.left) / r.width * W2;
+    if (px2 < M2.l || px2 > W2 - M2.r) return hide2();
+    const dense = vw.reduce((a, b) => a.pts.length >= b.pts.length ? a : b);
     let best = dense.pts[0];
-    for (const p of dense.pts) if (Math.abs(xOf2(p.t) - px) < Math.abs(xOf2(best.t) - px)) best = p;
+    for (const p of dense.pts) if (Math.abs(xOf2(p.t) - px2) < Math.abs(xOf2(best.t) - px2)) best = p;
     hov2.forEach(e => e.remove()); hov2 = [];
     hov2.push(el2("line", { x1: xOf2(best.t), x2: xOf2(best.t), y1: M2.t, y2: H2 - M2.b, stroke: COL.mut, "stroke-width": 1 }));
     tip2.textContent = "";
-    const dd = document.createElement("div"); dd.className = "d"; dd.textContent = fmtD(best.t); tip2.appendChild(dd);
-    for (const s of view){
-      const v = lin(s.pts, best.t);
-      hov2.push(el2("circle", { cx: xOf2(best.t), cy: yOf2(v), r: 4, fill: s.col, stroke: COL.card, "stroke-width": 2 }));
+    const dd = document.createElement("div"); dd.className = "d"; dd.textContent = fmtDT(best.t); tip2.appendChild(dd);
+    for (const sr of vw){
+      const v = lin(sr.pts, best.t), $v = fromD(v);
+      hov2.push(el2("circle", { cx: xOf2(best.t), cy: yOf2(v), r: 4, fill: sr.col, stroke: COL.card, "stroke-width": 2 }));
       const rw = document.createElement("div"); rw.className = "r";
-      const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = s.col;
-      const nm = document.createElement("span"); nm.textContent = s.key.split(" @")[0];
+      const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = sr.col;
+      const nm = document.createElement("span"); nm.textContent = sr.key.split(" @")[0];
       const vv = document.createElement("span"); vv.className = "v mono";
-      vv.textContent = "$" + Math.round(v) + " (" + pct(v / REBASE_V - 1, 1) + ")";
+      vv.textContent = realMode === "%" ? pct($v / anchor - 1, 2) + " · $" + $v.toFixed(2)
+                                        : "$" + $v.toFixed(2) + " (" + pct($v / anchor - 1, 2) + ")";
       rw.append(key, nm, vv); tip2.appendChild(rw);
     }
     tip2.style.display = "block";
@@ -513,6 +601,17 @@ function mbSeries(){
   for (let i = 0; i < n; i += stride) out.push({ t: ms(S.mb.dates[i]), d: S.mb.dates[i], v: sc.eq[i] });
   if (out[out.length - 1].d !== S.mb.dates[n - 1])
     out.push({ t: ms(S.mb.dates[n - 1]), d: S.mb.dates[n - 1], v: sc.eq[n - 1] });
+  return out;
+}
+function btcSeries(){
+  if (!S.btc || S.btc.length < 2) return null;
+  const p0 = S.btc[0].v;
+  if (!(p0 > 0)) return null;
+  const n = S.btc.length, stride = Math.max(1, Math.ceil(n / 900));
+  const out = [];
+  for (let i = 0; i < n; i += stride) out.push({ t: S.btc[i].t, d: S.btc[i].d, v: 500 * S.btc[i].v / p0 });
+  if (out[out.length - 1].d !== S.btc[n - 1].d)
+    out.push({ t: S.btc[n - 1].t, d: S.btc[n - 1].d, v: 500 * S.btc[n - 1].v / p0 });
   return out;
 }
 function interpAt(pts, t){
@@ -546,6 +645,8 @@ function draw(){
   const mb = mbSeries();
   if (S.m1 && mode !== "MB") series.push({ key: "M1 vs M5", col: COL.m1, pts: S.m1 });
   if (mb && mode !== "M1") series.push({ key: "Max B @50bp", col: COL.mb, pts: mb });
+  const bhold = btcSeries();
+  if (bhold) series.push({ key: "BTC hold", col: COL.btc, pts: bhold });
   const note = document.getElementById("chartNote");
   if (!series.length){
     note.textContent = "⚠ no curve data reachable — nothing to plot.";
@@ -599,10 +700,9 @@ function draw(){
     endLabs.push({ x: xOf(lp.t), y: yOf(lp.v), txt: disp === "%" ? fmtPctC(lp.v) : fmt$(lp.v) });
   }
   /* collision-nudge end labels apart */
-  if (endLabs.length === 2 && Math.abs(endLabs[0].y - endLabs[1].y) < 16){
-    const [a, b] = endLabs[0].y < endLabs[1].y ? [endLabs[0], endLabs[1]] : [endLabs[1], endLabs[0]];
-    a.y -= (16 - (b.y - a.y)) / 2; b.y += (16 - (b.y - a.y));
-  }
+  endLabs.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < endLabs.length; i++)
+    if (endLabs[i].y - endLabs[i - 1].y < 14) endLabs[i].y = endLabs[i - 1].y + 14;
   for (const L of endLabs)
     el("text", { x: L.x - 8, y: L.y - 9, "text-anchor": "end", fill: COL.ink, "font-size": 11,
                  "font-weight": 700, "font-family": "ui-monospace,Consolas,monospace" }).textContent = L.txt;
@@ -611,7 +711,8 @@ function draw(){
   note.textContent = (disp === "%" ? "Percent change since the window start (each model rebased at its own first visible point), log scale. "
                                    : "Log scale. ") + "M1 vs M5 is a sparse change-point curve" +
     (S.m1 ? " (to " + S.m1[S.m1.length-1].d + (S.m1live ? ", live daily" : ", static") + ")" : "") +
-    (mb ? "; Max B @50bp is daily" + (view.length && range === "ALL" ? " (downsampled for drawing)" : "") + ", live from btc-power." : ".");
+    (mb ? "; Max B @50bp is daily" + (view.length && range === "ALL" ? " (downsampled for drawing)" : "") + ", live from btc-power." : ".") +
+    (bhold ? " Gray = $500 held in spot BTC from the same start — no leverage, no strategy." : "");
   renderLegend();
 }
 function renderLegend(){
@@ -729,6 +830,24 @@ function renderScen(){
   note.textContent = "0 bp is perfect-fill (untradeable upper bound); 50 bp is the headline; 100 bp is stressed.";
 }
 
+/* ── M1 slippage scenarios (static: 1-min intraday A/B, 2026-09-19) ── */
+function renderScenM1(){
+  const t = document.getElementById("scenM1"); t.textContent = "";
+  const BASE = 533394378;
+  const rows = [["0 bp (published backtest)", BASE], ["10 bp", 432155484],
+                ["25 bp", 314885956], ["50 bp", 185354180]];
+  const hr = t.insertRow();
+  for (const h of ["Stop-fill slippage", "Final (from $500)", "vs 0 bp"]){
+    const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
+  for (const [name, fin] of rows){
+    const r = t.insertRow();
+    r.insertCell().textContent = name;
+    const c1 = r.insertCell(); c1.className = "mono"; c1.textContent = fmt$(fin);
+    const c2 = r.insertCell(); c2.className = "mono";
+    c2.textContent = fin === BASE ? "—" : pct(fin / BASE - 1, 0);
+  }
+}
+
 /* ── trades ── */
 function tradeChips(){
   const row = document.getElementById("tradeToggle"); row.textContent = "";
@@ -742,8 +861,10 @@ function renderTrades(){
   const t = document.getElementById("trades"), note = document.getElementById("tradeNote");
   t.textContent = "";
   const hr = t.insertRow();
-  for (const h of ["Dir","Entry","Exit","Ret"]){
+  for (const h of ["Dir","Entry","Exit","Gross","Costs (est)","Net"]){
     const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
+  const tradeDays = (ed, xd) => { const a = Date.parse(ed), b = xd ? Date.parse(xd) : Date.now();
+    return isFinite(a) && isFinite(b) ? Math.max(0, (b - a) / DAY) : null; };
   const cell = (r, dt, p) => { const c = r.insertCell(); c.className = "mono";
     c.appendChild(document.createTextNode(p != null ? fmtFull(p) : "—")); c.appendChild(document.createElement("br"));
     const s = document.createElement("span"); s.className = "sub"; s.textContent = dt || "—"; c.appendChild(s); };
@@ -751,7 +872,12 @@ function renderTrades(){
     const d = document.createElement("span"); d.className = "dirsm " + (isLong ? "L" : "S");
     d.textContent = isLong ? "LONG" : "SHORT"; c.appendChild(d); };
   const retCell = (r, v) => { const c = r.insertCell();
-    c.className = "mono " + (v >= 0 ? "pos" : "neg"); c.textContent = pct(v, 1); };
+    c.className = "mono " + (v >= 0 ? "pos" : "neg"); c.textContent = v == null ? "—" : pct(v, 1); };
+  const costCell = (r, feeLab, feeP, intP) => { const c = r.insertCell(); c.className = "mono";
+    const l1 = document.createElement("div"); l1.textContent = feeLab + " " + feeP.toFixed(2) + "%";
+    const l2 = document.createElement("div"); l2.className = "sub";
+    l2.textContent = "interest " + (intP == null ? "—" : "≈" + intP.toFixed(2) + "%");
+    c.append(l1, l2); };
 
   if (tradeSrc === "MB"){
     if (!(S.mb && S.mb.recent_trades)){ note.textContent = "⚠ btc-power feed unreachable."; return; }
@@ -759,9 +885,16 @@ function renderTrades(){
       const r = t.insertRow();
       dirCell(r, tr.direction === "LONG");
       cell(r, tr.entry_dt, tr.entry); cell(r, tr.exit_dt, tr.exit);
-      retCell(r, tr.ret);
+      const dN = tradeDays(tr.entry_dt, tr.exit_dt);
+      const intP = dN == null ? null : dN * 0.03;
+      retCell(r, tr.ret + 0.01);                                 // model ret with its 1.00% slippage+fee added back
+      costCell(r, "slip+fee", 1.00, intP);
+      retCell(r, intP == null ? tr.ret : tr.ret - intP / 100);   // model ret minus interest est
     }
-    note.textContent = "Live from btc-power. Return is the model's per-trade result; the open trade shows mark-to-market.";
+    note.textContent = "Live from btc-power; the open trade shows mark-to-market. The published model return already " +
+      "includes its 1.00% round-trip slippage+fee assumption, so Gross adds it back and Net further subtracts margin " +
+      "borrow interest (≈0.03%/day, NOT in that backtest) — estimates. Dollar costs depend on account size; " +
+      "the real-account table below carries actual $.";
   } else {
     if (!S.m1acts){ note.textContent = "⚠ engine_actions_hist.json unreachable."; return; }
     const trades = []; let open = null;
@@ -779,10 +912,99 @@ function renderTrades(){
       const r = t.insertRow();
       dirCell(r, tr.long);
       cell(r, tr.eD, tr.eP); cell(r, tr.xD, tr.xP);
-      retCell(r, tr.ret);
+      const dN = tradeDays(tr.eD, tr.xD);
+      const intP = dN == null ? null : dN * (tr.long ? 0.024 : 0.010);
+      retCell(r, tr.ret);                                        // gross: 1x price move entry->exit
+      costCell(r, "fee", 0.10, intP);
+      retCell(r, tr.ret - 0.001 - (intP || 0) / 100);            // net of fees + interest est
     }
-    note.textContent = "Static backtest markers. Return is the 1× price move entry→exit, not leveraged account P&L.";
+    note.textContent = "Static backtest markers; returns are the 1× price move on the traded notional, not " +
+      "leveraged account P&L. Costs as % of notional, est: 0.10% round-trip platform fees + margin borrow interest " +
+      "(long 5× ≈ 0.024%/day, short 2× ≈ 0.010%/day). Net = Gross − both. The published equity " +
+      "curve already charges real fees + funding. Actual $ costs are in the real-account table below.";
   }
+}
+
+/* ── real account trades: ACTUAL Binance fills, fees & margin interest ── */
+function renderRealTrades(){
+  const t = document.getElementById("realtrades"), note = document.getElementById("realtradeNote");
+  t.textContent = "";
+  if (!S.rp){ note.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — actual fills unavailable."; return; }
+  const hr = t.insertRow();
+  for (const h of ["Side","Opened → Closed","Gross P&L","Fees","Interest","Net P&L"]){
+    const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
+  const eqHist = Array.isArray(S.rp.equity_history)
+    ? S.rp.equity_history.map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
+        .filter(p => isFinite(p.t) && p.v > 0).sort((a, b) => a.t - b.t)
+    : [];
+  const eqAt = ts => { if (!isFinite(ts) || !eqHist.length) return null;
+    let best = null; for (const p of eqHist){ if (p.t <= ts) best = p; else break; }
+    return best ? best.v : eqHist[0].v; };
+  const rows = [];
+  if (S.rp.open) rows.push(Object.assign({}, S.rp.open, { _open: true }));
+  for (const tr of (S.rp.recent_closed || []).slice().reverse()) rows.push(tr);
+  if (!rows.length){ note.textContent = "No trades on the account record yet — the first M1 fill appears after the tracker's next hourly update."; return; }
+  let intPending = false, intActual = false;
+  const dt = x => x ? String(x).replace(" UTC", "") : "—";
+  const money = v => (v >= 0 ? "+$" : "−$") + Math.abs(v).toFixed(2);
+  const val = (r, v, base, signed, extra) => { const c = r.insertCell();
+    c.className = "mono" + (signed && v != null ? (v >= 0 ? " pos" : " neg") : "");
+    if (v == null){ c.textContent = "—"; return c; }
+    const l1 = document.createElement("div"); l1.textContent = (signed ? money(v) : "$" + v.toFixed(2)) + (extra || "");
+    const l2 = document.createElement("div"); l2.className = "sub";
+    l2.textContent = base ? (signed ? pct(v / base, 2) : (v / base * 100).toFixed(2) + "%") : "";
+    c.append(l1, l2); return c; };
+  for (const tr of rows){
+    const r = t.insertRow();
+    const c0 = r.insertCell();
+    const d = document.createElement("span"); d.className = "dirsm " + (tr.side === "LONG" ? "L" : "S");
+    d.textContent = tr.side || "—"; c0.appendChild(d);
+    if (tr.max_qty != null){ const q = document.createElement("div"); q.className = "sub";
+      q.textContent = (+tr.max_qty).toFixed(5) + " BTC"; c0.appendChild(q); }
+    const c1 = r.insertCell(); c1.className = "mono";
+    const o1 = document.createElement("div"); o1.textContent = dt(tr.opened);
+    const o2 = document.createElement("div"); o2.className = "sub";
+    o2.textContent = "→ " + (tr._open ? "open" : dt(tr.closed));
+    c1.append(o1, o2);
+    const eq0 = eqAt(parseRpTs(tr.opened));
+    const fees = tr.fees_usdt != null ? +tr.fees_usdt : null;
+    const hasInt = tr.interest_usdt != null;
+    if (hasInt) intActual = true; else intPending = true;
+    const intr = hasInt ? +tr.interest_usdt : null;
+    const netv = tr._open ? (tr.unrealized_usd != null ? +tr.unrealized_usd : null)
+                          : (tr.realized_usd != null ? +tr.realized_usd : null);
+    const gross = netv == null ? null : netv + (fees || 0) + (intr || 0);
+    val(r, gross, eq0, true);
+    val(r, fees, eq0, false);
+    const ci = val(r, intr, eq0, false); if (!hasInt) ci.textContent = "—*";
+    val(r, netv, eq0, true, tr._open ? " mtm" : "");
+  }
+  let n = "ACTUAL Binance account record (times UTC; includes the pre-handover Max B-era trade). " +
+    "$ = real fills; % = vs the account equity when the trade opened. Fees = the platform trading fees " +
+    "Binance charged; Gross = Net + Fees + Interest (P&L before costs).";
+  if (intActual) n += " Interest = actual margin borrow interest over the trade (Binance interest history).";
+  if (intPending) n += " *Margin borrow interest is charged hourly by Binance and is already inside the account " +
+    "equity above; the per-trade breakdown appears here once the account tracker publishes it (until then " +
+    "Gross excludes it).";
+  if (S.rp.total_interest_usdt != null) n += " Total interest paid to date: $" + (+S.rp.total_interest_usdt).toFixed(2) + ".";
+  n += " New M1 fills (order ids m1tr-…) appear automatically, incl. their actual slippage vs the model price.";
+  note.textContent = n;
+}
+
+/* ── tabs: Overview / Trades ── */
+function initTabs(){
+  const bar = document.getElementById("tabbar");
+  const cards = [...document.querySelectorAll(".wrap > .card, .wrap > .sigs")];
+  const tradeIds = ["tradescard", "realtradescard"];
+  const base = new Map(cards.map(c => [c, c.style.display]));   // keep hidden position cards hidden
+  const apply = tb => {
+    for (const c of cards)
+      c.style.display = (tb === "trades") !== tradeIds.includes(c.id) ? "none" : base.get(c);
+    for (const b of bar.querySelectorAll(".chip"))
+      b.className = "chip" + (b.dataset.tab === tb ? " on" : "");
+  };
+  for (const b of bar.querySelectorAll(".chip")) b.onclick = () => apply(b.dataset.tab);
+  apply("overview");
 }
 </script>
 </body>
