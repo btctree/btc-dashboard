@@ -971,9 +971,12 @@ function renderRealTrades(){
     const hasInt = tr.interest_usdt != null;
     if (hasInt) intActual = true; else intPending = true;
     const intr = hasInt ? +tr.interest_usdt : null;
-    const netv = tr._open ? (tr.unrealized_usd != null ? +tr.unrealized_usd : null)
-                          : (tr.realized_usd != null ? +tr.realized_usd : null);
-    const gross = netv == null ? null : netv + (fees || 0) + (intr || 0);
+    /* realized_usd comes from the fills: it is AFTER trading fees but BEFORE interest
+       (interest is charged to the account hourly and never appears in fills) */
+    const realv = tr._open ? (tr.unrealized_usd != null ? +tr.unrealized_usd : null)
+                           : (tr.realized_usd != null ? +tr.realized_usd : null);
+    const gross = realv == null ? null : realv + (fees || 0);
+    const netv = realv == null ? null : (hasInt ? realv - intr : realv);
     val(r, gross, eq0, true);
     val(r, fees, eq0, false);
     const ci = val(r, intr, eq0, false); if (!hasInt) ci.textContent = "—*";
@@ -981,11 +984,11 @@ function renderRealTrades(){
   }
   let n = "ACTUAL Binance account record (times UTC; includes the pre-handover Max B-era trade). " +
     "$ = real fills; % = vs the account equity when the trade opened. Fees = the platform trading fees " +
-    "Binance charged; Gross = Net + Fees + Interest (P&L before costs).";
-  if (intActual) n += " Interest = actual margin borrow interest over the trade (Binance interest history).";
-  if (intPending) n += " *Margin borrow interest is charged hourly by Binance and is already inside the account " +
-    "equity above; the per-trade breakdown appears here once the account tracker publishes it (until then " +
-    "Gross excludes it).";
+    "Binance charged on the fills. Gross = P&L before costs; Net = after fees and interest.";
+  if (intActual) n += " Interest = actual margin borrow interest over the trade (Binance interest history; " +
+    "charged to the account hourly, not part of the fills).";
+  if (intPending) n += " *Interest breakdown pending from the account tracker — that row's Net is after " +
+    "fees only; the interest itself is already inside the account equity above.";
   if (S.rp.total_interest_usdt != null) n += " Total interest paid to date: $" + (+S.rp.total_interest_usdt).toFixed(2) + ".";
   n += " New M1 fills (order ids m1tr-…) appear automatically, incl. their actual slippage vs the model price.";
   note.textContent = n;
