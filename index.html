@@ -158,7 +158,8 @@
     <table id="h2h"></table>
     <div class="caveat">Different cost models: M1 vs M5 uses real fees + funding with 1-min-validated intraday stops
       (curve frozen at its last regeneration). Max B headline uses 50 bp slippage per side. Directly comparable
-      only as order-of-magnitude — see scenarios below.</div>
+      only as order-of-magnitude — see scenarios below. *M1 ratio stats are from the $533M backtest anchor
+      (2026-09-19 restatement); the Final cell is live and has grown since.</div>
   </div>
 
   <div class="card">
@@ -244,7 +245,7 @@ Promise.allSettled([
 ]).then(([cl, al, sl, ch, ah, p, px, rp, bh, bk, bi]) => {
   const curve = cl.status === "fulfilled" ? cl.value : (ch.status === "fulfilled" ? ch.value : null);
   S.m1live = cl.status === "fulfilled";
-  if (curve) S.m1 = curve.map(q => ({ t: ms(q.d), d: q.d, v: q.n }));
+  if (curve && curve.length) S.m1 = curve.map(q => ({ t: ms(q.d), d: q.d, v: q.n }));
   S.m1acts = al.status === "fulfilled" ? al.value : (ah.status === "fulfilled" ? ah.value : null);
   S.m1state = sl.status === "fulfilled" ? sl.value : null;
   if (p.status === "fulfilled") S.mb = p.value;
@@ -255,9 +256,12 @@ Promise.allSettled([
   if (bk.status === "fulfilled") for (const k of bk.value) pmap.set(new Date(k[0]).toISOString().slice(0, 10), +k[4]);
   S.btc = pmap.size > 10 ? [...pmap.entries()].map(([d, v]) => ({ t: ms(d), d, v })).sort((a, b) => a.t - b.t) : null;
   S.btcRT = bi.status === "fulfilled"
-    ? bi.value.map(k => ({ t: k[6], v: +k[4] })).filter(q => isFinite(q.t) && q.v > 0) : null;
-  renderSignals(); renderM1Position(); renderPosition(); chips(); draw(); realChips(); drawReal(); renderH2H();
-  renderScen(); renderScenM1(); tradeChips(); renderTrades(); renderRealTrades(); initTabs();
+    ? bi.value.map(k => ({ t: k[6], v: +k[4], o: +k[1] })).filter(q => isFinite(q.t) && q.v > 0) : null;
+  /* one section's failure must never blank the rest (audit 2026-09-21) */
+  for (const fn of [renderSignals, renderM1Position, renderPosition, chips, draw, realChips, drawReal,
+                    renderH2H, renderScen, renderScenM1, tradeChips, renderTrades, renderRealTrades, initTabs]){
+    try { fn(); } catch (e) { console.error(fn.name, e); }
+  }
 });
 
 function renderPrice(p){
@@ -444,6 +448,9 @@ function drawReal(){
     if (pts.length){ real = pts; anchor = pts[0].v; anchorT = pts[0].t; }
   }
   if (!real){ note2.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — the chart resumes when it returns."; return; }
+  /* pinned anchor: if the tracker ever prunes early history, never silently rebase the record */
+  const PIN = { t: Date.UTC(2026, 8, 20, 0, 5), v: 306.87 };
+  if (real[0].t > PIN.t + 2 * 3600e3){ real = [PIN, ...real]; anchor = PIN.v; anchorT = PIN.t; }
 
   /* Max B @50bp simulation rebased to the SAME start value at the same date.
      Base = Max B's last daily close BEFORE the start, so its very first
@@ -454,13 +461,16 @@ function drawReal(){
     let base = null;
     const pts = [];
     for (let i = 0; i < S.mb.dates.length; i++){
+      /* a daily CLOSE belongs at its end-of-day timestamp (+DAY), not midnight — keeps the
+         series time-sorted after the intraday anchor and plots day-one's move correctly */
       const t = ms(S.mb.dates[i]);
       if (!(eq[i] > 0)) continue;
       if (t < REAL_START_TS){ base = eq[i]; continue; }
-      pts.push({ t, v: eq[i] });
+      pts.push({ t: t + DAY, v: eq[i] });
     }
     if (base != null)
-      sim = [{ t: anchorT, v: anchor }, ...pts.map(p => ({ t: p.t, v: anchor * p.v / base }))];
+      sim = [{ t: anchorT, v: anchor },
+             ...pts.filter(p => p.t > anchorT).map(p => ({ t: p.t, v: anchor * p.v / base }))];
   }
 
   const view = [{ key: "M1 real account", col: COL.m1, pts: real }];
@@ -469,7 +479,9 @@ function drawReal(){
   if (S.btcRT && S.btcRT.length > 1){
     const inWin = S.btcRT.filter(p => p.t >= REAL_START_TS);
     if (inWin.length > 1){
-      const b0 = inWin[0].v;
+      /* base = the first candle's OPEN: identical across 1h/4h/1d intervals, so the line
+         cannot jump when the fetch interval widens as the window grows (audit 2026-09-21) */
+      const b0 = inWin[0].o > 0 ? inWin[0].o : inWin[0].v;
       view.push({ key: "BTC hold", col: COL.btc, pts: inWin.map(p => ({ t: p.t, v: anchor * p.v / b0 })) });
     }
   }
@@ -491,8 +503,9 @@ function drawReal(){
   /* linear y ticks (~5) */
   const span = y1v - y0v, rawStep = span / 4.5, mag = 10 ** Math.floor(Math.log10(rawStep));
   const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s2 => span / s2 <= 5.5) || 10 * mag;
-  const tickLab = v => realMode === "%" ? (v > 0 ? "+" : "") + v.toFixed(step < 1 ? 1 : 0) + "%"
-                                        : "$" + Math.round(v);
+  const dp = step >= 1 ? (Number.isInteger(step) ? 0 : 1) : Math.ceil(-Math.log10(step));
+  const tickLab = v => realMode === "%" ? (v > 0 ? "+" : "") + v.toFixed(dp) + "%"
+                                        : "$" + v.toFixed(dp);
   for (let v = Math.ceil(y0v / step) * step; v <= y1v + 1e-9; v += step){
     el2("line", { x1: M2.l, x2: W2 - M2.r, y1: yOf2(v), y2: yOf2(v), stroke: COL.line, "stroke-width": 1 });
     el2("text", { x: M2.l - 6, y: yOf2(v) + 3.5, "text-anchor": "end", fill: COL.mut, "font-size": 10,
@@ -560,7 +573,7 @@ function drawReal(){
     return MON[x.getUTCMonth()] + " " + x.getUTCDate() + ", " +
            String(x.getUTCHours()).padStart(2, "0") + ":" + String(x.getUTCMinutes()).padStart(2, "0") + " UTC"; };
   const hide2 = () => { tip2.style.display = "none"; hov2.forEach(e => e.remove()); hov2 = []; };
-  svg2.addEventListener("pointermove", ev => {
+  svg2.onpointermove = ev => {   // property assignment: re-running drawReal replaces, never stacks
     const r = svg2.getBoundingClientRect();
     const px2 = (ev.clientX - r.left) / r.width * W2;
     if (px2 < M2.l || px2 > W2 - M2.r) return hide2();
@@ -588,8 +601,8 @@ function drawReal(){
     if (lx + bx.width > r.width - 4) lx = (xOf2(best.t) / W2) * r.width - bx.width - 12;
     tip2.style.left = lx + "px";
     tip2.style.top = Math.max(4, (ev.clientY - r.top) - bx.height - 10) + "px";
-  });
-  svg2.addEventListener("pointerleave", hide2);
+  };
+  svg2.onpointerleave = hide2;
 }
 
 /* ── chart ── */
@@ -792,14 +805,15 @@ function renderH2H(){
   for (const h of ["", "M1 vs M5", "Max B @50bp"]){
     const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
   const m1Final = S.m1 ? S.m1[S.m1.length - 1].v : null;
-  const mbM = S.mb && S.mb.scenarios && S.mb.scenarios["Max B @50bp"] ? S.mb.scenarios["Max B @50bp"].metrics : null;
+  const sc50 = S.mb && S.mb.scenarios ? S.mb.scenarios["Max B @50bp"] : null;
+  const mbM = sc50 ? sc50.metrics : null;
   const rows = [
     ["Final (from $500)", m1Final ? fmt$(m1Final) : "—", mbM ? fmt$(mbM.final) : "—"],
-    ["CAGR", "201%/yr", mbM ? Math.round(mbM.cagr * 100) + "%/yr" : "—"],
-    ["Sharpe", "1.38", mbM ? mbM.sharpe.toFixed(2) : "—"],
-    ["Max drawdown", "−44%", mbM ? "−" + Math.round(Math.abs(mbM.maxdd) * 100) + "%" : "—"],
-    ["Calmar", "4.54", mbM ? (mbM.cagr / Math.abs(mbM.maxdd)).toFixed(2) : "—"],
-    ["Liquidations", "0", (S.mb && S.mb.scenarios) ? String(S.mb.scenarios["Max B @50bp"].liq) : "—"],
+    ["CAGR", "201%/yr*", mbM ? Math.round(mbM.cagr * 100) + "%/yr" : "—"],
+    ["Sharpe", "1.38*", mbM ? mbM.sharpe.toFixed(2) : "—"],
+    ["Max drawdown", "−44%*", mbM ? "−" + Math.round(Math.abs(mbM.maxdd) * 100) + "%" : "—"],
+    ["Calmar", "4.54*", mbM ? (mbM.cagr / Math.abs(mbM.maxdd)).toFixed(2) : "—"],
+    ["Liquidations", "0", sc50 && sc50.liq != null ? String(sc50.liq) : "—"],
     ["Leverage", "5× long / 2× short", "up to ~1.8× equity, dynamic"],
     ["Costs", "real fees + funding", "50 bp slippage/side"],
   ];
@@ -983,8 +997,9 @@ function renderRealTrades(){
     const p2 = document.createElement("div"); p2.className = "sub";
     p2.textContent = "→ " + (tr._open ? "open" : (eOut != null ? fmtFull(eOut) : "—†"));
     cp.append(p1, p2);
+    const qv = tr.max_qty != null ? +tr.max_qty : (tr.qty != null ? +tr.qty : null);
     const cq = r.insertCell(); cq.className = "mono";
-    cq.textContent = tr.max_qty != null ? (+tr.max_qty).toFixed(5) : "—";
+    cq.textContent = qv != null ? qv.toFixed(5) : "—";
     const eq0 = eqAt(parseRpTs(tr.opened));
     const fees = tr.fees_usdt != null ? +tr.fees_usdt : null;
     const hasInt = tr.interest_usdt != null;
@@ -992,14 +1007,19 @@ function renderRealTrades(){
     const intr = hasInt ? +tr.interest_usdt : null;
     /* realized_usd comes from the fills: it is AFTER trading fees but BEFORE interest
        (interest is charged to the account hourly and never appears in fills) */
-    const realv = tr._open ? (tr.unrealized_usd != null ? +tr.unrealized_usd : null)
-                           : (tr.realized_usd != null ? +tr.realized_usd : null);
+    let realv = tr._open ? (tr.unrealized_usd != null ? +tr.unrealized_usd : null)
+                         : (tr.realized_usd != null ? +tr.realized_usd : null);
+    let mtmEst = false;
+    if (tr._open && realv == null && eIn != null && qv && S.rp.price > 0){
+      /* tracker publishes no unrealized field yet: honest client-side mark from actual entry px */
+      realv = (S.rp.price - eIn) * qv * (tr.side === "SHORT" ? -1 : 1); mtmEst = true;
+    }
     const gross = realv == null ? null : realv + (fees || 0);
     const netv = realv == null ? null : (hasInt ? realv - intr : realv);
     val(r, gross, eq0, true);
     val(r, fees, eq0, false);
     const ci = val(r, intr, eq0, false); if (!hasInt) ci.textContent = "—*";
-    val(r, netv, eq0, true, tr._open ? " mtm" : "");
+    val(r, netv, eq0, true, tr._open ? (mtmEst ? " mtm est" : " mtm") : "");
   }
   let n = "ACTUAL Binance account record since 20 Sep 2026 (times UTC; pre-handover activity excluded). " +
     "$ = real fills; % = vs the account equity when the trade opened. Qty = the largest position size " +
