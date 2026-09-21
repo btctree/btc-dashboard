@@ -92,6 +92,9 @@
   .dirsm.L{color:var(--grn); border:1px solid var(--grn)}
   .dirsm.S{color:var(--red); border:1px solid var(--red)}
   .swatch{display:inline-block; width:9px; height:9px; border-radius:2.5px; margin-right:7px; vertical-align:-1px}
+  #refreshBtn{margin-left:10px; font-size:16px; line-height:1; padding:5px 10px}
+  #refreshBtn.spin{animation:rspin 1s linear infinite; pointer-events:none; opacity:.6}
+  @keyframes rspin{to{transform:rotate(360deg)}}
 
   footer{font-size:11px; color:var(--mut); text-align:center; line-height:1.7; padding:6px 10px}
   footer a{color:var(--blu); text-decoration:none}
@@ -102,6 +105,7 @@
 
   <header>
     <div class="brand">M1vsM5<span class="x">×</span>MAX B<small>BTC MODEL COMPARISON</small></div>
+    <button id="refreshBtn" class="chip" aria-label="Refresh data" title="Refresh data">&#10227;</button>
     <div class="pricechip"><div class="p mono" id="livepx">—</div><div class="s" id="pxsub">BTC/USDT</div></div>
   </header>
 
@@ -225,44 +229,77 @@ const fmtPctC = r => { const p = (r - 1) * 100, a = Math.abs(p), s = p >= 0 ? "+
        : s + a.toFixed(a >= 10 ? 0 : 1) + "%"; };
 
 /* ── state ── */
-const S = { m1: null, m1acts: null, m1state: null, m1live: false, mb: null, rp: null, btc: null, btcRT: null };   // loaded data
+const S = { m1: null, m1acts: null, m1state: null, m1live: false, mb: null, rp: null, btc: null, btcRT: null, px: null };   // loaded data
 let range = "ALL", mode = "BOTH", tradeSrc = "MB", disp = "$", realMode = "$";
 
-/* ── boot: fetch everything, live-first with static fallback, degrade per-section ── */
+/* ── boot: fetch everything, live-first with static fallback, degrade per-section.
+   loadAll() is re-runnable: the refresh button and pull-to-refresh call it again. ── */
 const J = u => fetch(u).then(r => { if (!r.ok) throw 0; return r.json(); });
-Promise.allSettled([
-  J("./equity_curve_live.json?t=" + Date.now()),    // published daily by BTC-Signal
-  J("./engine_actions_live.json?t=" + Date.now()),
-  J("./m1_state.json?t=" + Date.now()),
-  J("./equity_curve_hist.json"),                    // static fallback (backtest to 2026-06-13)
-  J("./engine_actions_hist.json"),
-  J(POWER_URL + "?t=" + Date.now()),
-  J(PRICE_URL),
-  J("https://btctree.github.io/btc-power/real_pnl.json?t=" + Date.now()),
-  J("./btc_price_hist.json"),                       // 2014 -> 2026-06 daily closes (CoinGecko-era splice)
-  J(KLINE_D_URL),                                   // Binance daily top-up (covers the last ~2.7y)
-  J(KLINE_RT_URL),                                  // intraday since the real-account start
-]).then(([cl, al, sl, ch, ah, p, px, rp, bh, bk, bi]) => {
-  const curve = cl.status === "fulfilled" ? cl.value : (ch.status === "fulfilled" ? ch.value : null);
-  S.m1live = cl.status === "fulfilled";
-  if (curve && curve.length) S.m1 = curve.map(q => ({ t: ms(q.d), d: q.d, v: q.n }));
-  S.m1acts = al.status === "fulfilled" ? al.value : (ah.status === "fulfilled" ? ah.value : null);
-  S.m1state = sl.status === "fulfilled" ? sl.value : null;
-  if (p.status === "fulfilled") S.mb = p.value;
-  renderPrice(px.status === "fulfilled" ? +px.value.price : null);
-  S.rp = rp.status === "fulfilled" ? rp.value : null;
-  const pmap = new Map();
-  if (bh.status === "fulfilled") for (const q of bh.value) pmap.set(q[0], +q[1]);
-  if (bk.status === "fulfilled") for (const k of bk.value) pmap.set(new Date(k[0]).toISOString().slice(0, 10), +k[4]);
-  S.btc = pmap.size > 10 ? [...pmap.entries()].map(([d, v]) => ({ t: ms(d), d, v })).sort((a, b) => a.t - b.t) : null;
-  S.btcRT = bi.status === "fulfilled"
-    ? bi.value.map(k => ({ t: k[6], v: +k[4], o: +k[1] })).filter(q => isFinite(q.t) && q.v > 0) : null;
-  /* one section's failure must never blank the rest (audit 2026-09-21) */
-  for (const fn of [renderSignals, renderM1Position, renderPosition, chips, draw, realChips, drawReal,
-                    renderH2H, renderScen, renderScenM1, tradeChips, renderTrades, renderRealTrades, initTabs]){
-    try { fn(); } catch (e) { console.error(fn.name, e); }
-  }
-});
+let loading = false;
+function loadAll(){
+  if (loading) return;
+  loading = true;
+  const btn = document.getElementById("refreshBtn");
+  if (btn) btn.classList.add("spin");
+  Promise.allSettled([
+    J("./equity_curve_live.json?t=" + Date.now()),    // published daily by BTC-Signal
+    J("./engine_actions_live.json?t=" + Date.now()),
+    J("./m1_state.json?t=" + Date.now()),
+    J("./equity_curve_hist.json"),                    // static fallback (backtest to 2026-06-13)
+    J("./engine_actions_hist.json"),
+    J(POWER_URL + "?t=" + Date.now()),
+    J(PRICE_URL),
+    J("https://btctree.github.io/btc-power/real_pnl.json?t=" + Date.now()),
+    J("./btc_price_hist.json"),                       // 2014 -> 2026-06 daily closes (CoinGecko-era splice)
+    J(KLINE_D_URL),                                   // Binance daily top-up (covers the last ~2.7y)
+    J(KLINE_RT_URL),                                  // intraday since the real-account start
+  ]).then(([cl, al, sl, ch, ah, p, px, rp, bh, bk, bi]) => {
+    const curve = cl.status === "fulfilled" ? cl.value : (ch.status === "fulfilled" ? ch.value : null);
+    S.m1live = cl.status === "fulfilled";
+    if (curve && curve.length) S.m1 = curve.map(q => ({ t: ms(q.d), d: q.d, v: q.n }));
+    S.m1acts = al.status === "fulfilled" ? al.value : (ah.status === "fulfilled" ? ah.value : null);
+    S.m1state = sl.status === "fulfilled" ? sl.value : null;
+    if (p.status === "fulfilled") S.mb = p.value;
+    S.px = px.status === "fulfilled" ? +px.value.price : (S.mb && +S.mb.price > 0 ? +S.mb.price : null);
+    renderPrice(px.status === "fulfilled" ? +px.value.price : null);
+    S.rp = rp.status === "fulfilled" ? rp.value : null;
+    const pmap = new Map();
+    if (bh.status === "fulfilled") for (const q of bh.value) pmap.set(q[0], +q[1]);
+    if (bk.status === "fulfilled") for (const k of bk.value) pmap.set(new Date(k[0]).toISOString().slice(0, 10), +k[4]);
+    S.btc = pmap.size > 10 ? [...pmap.entries()].map(([d, v]) => ({ t: ms(d), d, v })).sort((a, b) => a.t - b.t) : null;
+    S.btcRT = bi.status === "fulfilled"
+      ? bi.value.map(k => ({ t: Math.min(k[6], Date.now()), v: +k[4], o: +k[1] }))
+          .filter(q => isFinite(q.t) && q.v > 0) : null;
+    /* LIVE MARK: extend the M1 model curve to today at the live price, using the published
+       position geometry (direction x margin x leverage). Flat -> the value simply carries. */
+    if (S.m1 && S.m1state && S.px > 0 && +S.m1state.price > 0){
+      const st0 = S.m1state, sgn = st0.signal === "LONG" ? 1 : st0.signal === "SHORT" ? -1 : 0;
+      const fr = +st0.margin_pct || 0.5, lv = +st0.leverage || 0;
+      const last = S.m1[S.m1.length - 1];
+      const dNow = new Date().toISOString().slice(0, 10);
+      if (dNow > last.d)
+        S.m1.push({ t: ms(dNow), d: dNow,
+                    v: last.v * (1 + (sgn ? sgn * fr * lv * (S.px / +st0.price - 1) : 0)) });
+    }
+    /* one section's failure must never blank the rest (audit 2026-09-21) */
+    for (const fn of [renderSignals, renderM1Position, renderPosition, chips, draw, realChips, drawReal,
+                      renderH2H, renderScen, renderScenM1, tradeChips, renderTrades, renderRealTrades, initTabs]){
+      try { fn(); } catch (e) { console.error(fn.name, e); }
+    }
+  }).finally(() => {
+    loading = false;
+    if (btn) btn.classList.remove("spin");
+  });
+}
+loadAll();
+document.getElementById("refreshBtn").onclick = () => loadAll();
+/* pull-to-refresh: drag down from the very top of the page */
+let ptrY = null;
+document.addEventListener("touchstart", e => { ptrY = window.scrollY <= 0 ? e.touches[0].clientY : null; }, { passive: true });
+document.addEventListener("touchmove", e => {
+  if (ptrY != null && window.scrollY <= 0 && e.touches[0].clientY - ptrY > 80){ ptrY = null; loadAll(); }
+}, { passive: true });
+document.addEventListener("touchend", () => { ptrY = null; }, { passive: true });
 
 function renderPrice(p){
   const el = document.getElementById("livepx"), sub = document.getElementById("pxsub");
@@ -447,6 +484,16 @@ function drawReal(){
       .sort((a, b) => a.t - b.t);
     if (pts.length){ real = pts; anchor = pts[0].v; anchorT = pts[0].t; }
   }
+  /* LIVE MARK: extend to now — exact while flat; open position marked from the snapshot
+     price to the live price at the open quantity */
+  if (real && S.px > 0){
+    const lastR = real[real.length - 1];
+    let liveEq = lastR.v;
+    const op = S.rp.open;
+    if (op && +op.qty > 0 && +S.rp.price > 0)
+      liveEq = lastR.v + (S.px - +S.rp.price) * (+op.qty) * (op.side === "SHORT" ? -1 : 1);
+    if (Date.now() > lastR.t + 60e3) real = [...real, { t: Date.now(), v: liveEq }];
+  }
   if (!real){ note2.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — the chart resumes when it returns."; return; }
   /* pinned anchor: if the tracker ever prunes early history, never silently rebase the record */
   const PIN = { t: Date.UTC(2026, 8, 20, 0, 5), v: 306.87 };
@@ -471,6 +518,14 @@ function drawReal(){
     if (base != null)
       sim = [{ t: anchorT, v: anchor },
              ...pts.filter(p => p.t > anchorT).map(p => ({ t: p.t, v: anchor * p.v / base }))];
+    /* LIVE MARK: between Max B's daily closes, carry the sim at its current exposure
+       from the last published close to the live price (estimate, labeled in the caption) */
+    if (sim && S.px > 0){
+      const lastD = S.mb.dates[S.mb.dates.length - 1], closeD = mbCloseOf(lastD);
+      const lastS = sim[sim.length - 1];
+      if (closeD > 0 && Date.now() > lastS.t + 60e3)
+        sim = [...sim, { t: Date.now(), v: lastS.v * (1 + mbLiveExposure() * (S.px / closeD - 1)) }];
+    }
   }
 
   const view = [{ key: "M1 real account", col: COL.m1, pts: real }];
@@ -554,9 +609,10 @@ function drawReal(){
   }
   note2.textContent = "Blue = the ACTUAL Binance account equity (hourly snapshots, net of ALL real costs — " +
     "trading fees, margin borrow interest, funding), from $" + anchor.toFixed(2) + " at " + fmtD(anchorT) + ". " +
-    "Amber = the Max B @50bp backtest simulation rebased to the same start (paper, not real fills); " +
-    "it extends at Max B's daily closes, so it stays a dot until the first close after 20 Sep. " +
-    "Gray = the same start value held in spot BTC — no margin, no strategy.";
+    "Amber = the Max B @50bp backtest simulation rebased to the same start (paper, not real fills). " +
+    "Gray = the same start value held in spot BTC — no margin, no strategy. All three lines are " +
+    "marked to the LIVE BTC price at the right edge; between Max B's daily closes its mark assumes " +
+    "the current published exposure (estimate).";
 
   /* crosshair + tooltip */
   const tip2 = document.getElementById("tip2");
@@ -611,6 +667,17 @@ const NS = "http://www.w3.org/2000/svg";
 const M = { l: 46, r: 14, t: 12, b: 26 }, W = 640, H = 330;
 let series = [], xOf = null, yOf = null;
 
+function mbLiveExposure(){
+  /* Max B's CURRENT signed exposure (x equity) from its live position card data */
+  const g = S.mb && S.mb.in_position ? (S.mb.model_growth || {}) : null;
+  if (!g || g.exposure_mult == null) return 0;
+  return (+g.exposure_mult) * (g.direction === "SHORT" ? -1 : 1);
+}
+function mbCloseOf(dstr){
+  if (!S.btc) return null;
+  for (let i = S.btc.length - 1; i >= 0; i--) if (S.btc[i].d === dstr) return S.btc[i].v;
+  return null;
+}
 function mbSeries(){
   if (!(S.mb && S.mb.dates && S.mb.scenarios)) return null;
   const sc = S.mb.scenarios["Max B @50bp"];
@@ -620,6 +687,12 @@ function mbSeries(){
   for (let i = 0; i < n; i += stride) out.push({ t: ms(S.mb.dates[i]), d: S.mb.dates[i], v: sc.eq[i] });
   if (out[out.length - 1].d !== S.mb.dates[n - 1])
     out.push({ t: ms(S.mb.dates[n - 1]), d: S.mb.dates[n - 1], v: sc.eq[n - 1] });
+  /* LIVE MARK: carry the curve to today at the live price and current exposure */
+  const lastD = S.mb.dates[n - 1], closeD = mbCloseOf(lastD);
+  const dNow = new Date().toISOString().slice(0, 10);
+  if (S.px > 0 && closeD > 0 && dNow > lastD)
+    out.push({ t: ms(dNow), d: dNow,
+               v: out[out.length - 1].v * (1 + mbLiveExposure() * (S.px / closeD - 1)) });
   return out;
 }
 function btcSeries(){
