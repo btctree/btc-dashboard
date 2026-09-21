@@ -937,7 +937,7 @@ function renderRealTrades(){
   t.textContent = "";
   if (!S.rp){ note.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — actual fills unavailable."; return; }
   const hr = t.insertRow();
-  for (const h of ["Side","Opened → Closed","Entry / Exit","Gross P&L","Fees","Interest","Net P&L"]){
+  for (const h of ["Side","Opened → Closed","Entry / Exit","Qty (BTC)","Gross P&L","Fees","Interest","Net P&L"]){
     const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
   const eqHist = Array.isArray(S.rp.equity_history)
     ? S.rp.equity_history.map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
@@ -969,8 +969,6 @@ function renderRealTrades(){
     const c0 = r.insertCell();
     const d = document.createElement("span"); d.className = "dirsm " + (tr.side === "LONG" ? "L" : "S");
     d.textContent = tr.side || "—"; c0.appendChild(d);
-    if (tr.max_qty != null){ const q = document.createElement("div"); q.className = "sub";
-      q.textContent = (+tr.max_qty).toFixed(5) + " BTC"; c0.appendChild(q); }
     const c1 = r.insertCell(); c1.className = "mono";
     const o1 = document.createElement("div"); o1.textContent = dt(tr.opened);
     const o2 = document.createElement("div"); o2.className = "sub";
@@ -985,6 +983,8 @@ function renderRealTrades(){
     const p2 = document.createElement("div"); p2.className = "sub";
     p2.textContent = "→ " + (tr._open ? "open" : (eOut != null ? fmtFull(eOut) : "—†"));
     cp.append(p1, p2);
+    const cq = r.insertCell(); cq.className = "mono";
+    cq.textContent = tr.max_qty != null ? (+tr.max_qty).toFixed(5) : "—";
     const eq0 = eqAt(parseRpTs(tr.opened));
     const fees = tr.fees_usdt != null ? +tr.fees_usdt : null;
     const hasInt = tr.interest_usdt != null;
@@ -1002,8 +1002,9 @@ function renderRealTrades(){
     val(r, netv, eq0, true, tr._open ? " mtm" : "");
   }
   let n = "ACTUAL Binance account record since 20 Sep 2026 (times UTC; pre-handover activity excluded). " +
-    "$ = real fills; % = vs the account equity when the trade opened. Fees = the platform trading fees " +
-    "Binance charged on the fills. Gross = P&L before costs; Net = after fees and interest.";
+    "$ = real fills; % = vs the account equity when the trade opened. Qty = the largest position size " +
+    "held during the trade. Fees = the platform trading fees Binance charged on the fills. " +
+    "Gross = P&L before costs; Net = after fees and interest.";
   if (intActual) n += " Interest = actual margin borrow interest over the trade (Binance interest history; " +
     "charged to the account hourly, not part of the fills). Interest since 20 Sep: $" + intSum.toFixed(2) + ".";
   if (intPending) n += " *Interest breakdown pending from the account tracker — that row's Net is after " +
