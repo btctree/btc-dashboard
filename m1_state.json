@@ -1,25 +1,43 @@
 {
   "state": {
-    "BW": 1,
-    "BK": "X",
-    "BY": 81934.0,
-    "BV": 76198.62,
-    "BU": 409670.0
+    "BW": 0,
+    "BK": "Y",
+    "BY": 0.0,
+    "BV": 0.0,
+    "BU": 0.0
   },
-  "last_date": "2026-09-21",
-  "price": 81934.0,
-  "regime": "TREND",
-  "data_source": "Binance live API + CoinGecko pre-2017",
-  "signal": "LONG",
-  "confidence": {
-    "score": 57,
-    "bucket": "Med"
-  },
+  "last_date": "2026-09-20",
+  "price": 81178.0,
+  "regime": "RANGING",
+  "data_source": "Binance data.binance.vision + CoinGecko pre-2017",
+  "signal": "FLAT",
+  "confidence": null,
   "bear_regime": false,
   "cutloss_pct": 0.07,
   "stop_type": "trailing",
   "trail_pct": 0.07,
-  "leverage": 5.0,
-  "margin_pct": 0.5,
-  "next_action": null
+  "leverage": null,
+  "margin_pct": null,
+  "next_action": {
+    "engine": "Y",
+    "levels": {
+      "sma20": 78472.08,
+      "sma50": 72870.79,
+      "boll_up": 82169.05,
+      "boll_dn": 74775.12,
+      "rsi": 52.9,
+      "macd": 1445.1,
+      "macd_signal": 1470.5
+    },
+    "long_trigger": 82192.73,
+    "short_trigger": null,
+    "regime": "RANGING",
+    "bias": "DOWN",
+    "zone": "PEAK",
+    "peak": 82169.05,
+    "mid": 78472.08,
+    "bottom": 74775.12,
+    "long_condition": "price fades to the lower band ($74,775) with RSI turning up",
+    "short_condition": "price extends to the upper band ($82,169) with RSI turning down"
+  }
 }
