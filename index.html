@@ -92,9 +92,13 @@
   .dirsm.L{color:var(--grn); border:1px solid var(--grn)}
   .dirsm.S{color:var(--red); border:1px solid var(--red)}
   .swatch{display:inline-block; width:9px; height:9px; border-radius:2.5px; margin-right:7px; vertical-align:-1px}
-  #refreshBtn{margin-left:10px; font-size:16px; line-height:1; padding:5px 10px}
+  #refreshBtn{margin-left:2px; margin-right:auto; font-size:21px; font-weight:800; line-height:1; padding:4px 10px}
   #refreshBtn.spin{animation:rspin 1s linear infinite; pointer-events:none; opacity:.6}
   @keyframes rspin{to{transform:rotate(360deg)}}
+  /* tab visibility: driven by a body class, never by per-card inline styles */
+  body.tab-trades .wrap > .sigs,
+  body.tab-trades .wrap > .card:not(#tradescard):not(#realtradescard){display:none}
+  body:not(.tab-trades) #tradescard, body:not(.tab-trades) #realtradescard{display:none}
 
   footer{font-size:11px; color:var(--mut); text-align:center; line-height:1.7; padding:6px 10px}
   footer a{color:var(--blu); text-decoration:none}
@@ -1106,20 +1110,20 @@ function renderRealTrades(){
   note.textContent = n;
 }
 
-/* ── tabs: Overview / Trades ── */
+/* ── tabs: Overview / Trades — pure CSS class on <body>, so re-running loadAll() can
+   never poison card visibility (the old capture-and-restore blanked the page when the
+   refresh button was pressed from the Trades tab) and the current tab survives refresh ── */
+let curTab = "overview";
 function initTabs(){
   const bar = document.getElementById("tabbar");
-  const cards = [...document.querySelectorAll(".wrap > .card, .wrap > .sigs")];
-  const tradeIds = ["tradescard", "realtradescard"];
-  const base = new Map(cards.map(c => [c, c.style.display]));   // keep hidden position cards hidden
   const apply = tb => {
-    for (const c of cards)
-      c.style.display = (tb === "trades") !== tradeIds.includes(c.id) ? "none" : base.get(c);
+    curTab = tb;
+    document.body.classList.toggle("tab-trades", tb === "trades");
     for (const b of bar.querySelectorAll(".chip"))
       b.className = "chip" + (b.dataset.tab === tb ? " on" : "");
   };
   for (const b of bar.querySelectorAll(".chip")) b.onclick = () => apply(b.dataset.tab);
-  apply("overview");
+  apply(curTab);
 }
 </script>
 </body>
