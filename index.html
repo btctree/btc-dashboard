@@ -1031,7 +1031,7 @@ function renderRealTrades(){
   t.textContent = "";
   if (!S.rp){ note.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — actual fills unavailable."; return; }
   const hr = t.insertRow();
-  for (const h of ["Side","Opened → Closed","Entry / Exit","Qty (BTC)","Gross P&L","Fees","Interest","Net P&L"]){
+  for (const h of ["Side","Opened → Closed","Avg fill in / out","Qty (BTC)","Gross P&L","Fees","Interest","Net P&L"]){
     const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
   const eqHist = Array.isArray(S.rp.equity_history)
     ? S.rp.equity_history.map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
@@ -1102,9 +1102,11 @@ function renderRealTrades(){
     val(r, netv, eq0, true, tr._open ? (mtmEst ? " mtm est" : " mtm") : "");
   }
   let n = "ACTUAL Binance account record since 20 Sep 2026 (times UTC; pre-handover activity excluded). " +
-    "$ = real fills; % = vs the account equity when the trade opened. Qty = the largest position size " +
-    "held during the trade. Fees = the platform trading fees Binance charged on the fills. " +
-    "Gross = P&L before costs; Net = after fees and interest.";
+    "$ = real fills; % = vs the account equity when the trade opened. Avg fill = the volume-weighted " +
+    "price across ALL the trade's entry (or exit) fills, incl. small hourly top-ups — it can differ " +
+    "from the model's paper entry (the daily close where the signal fired) and moves as the position " +
+    "is rebalanced. Qty = the largest position size held during the trade. Fees = the platform " +
+    "trading fees Binance charged on the fills. Gross = P&L before costs; Net = after fees and interest.";
   if (intActual) n += " Interest = actual margin borrow interest over the trade (Binance interest history; " +
     "charged to the account hourly, not part of the fills). Interest since 20 Sep: $" + intSum.toFixed(2) + ".";
   if (intPending) n += " *Interest breakdown pending from the account tracker — that row's Net is after " +
