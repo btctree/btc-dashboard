@@ -1031,7 +1031,7 @@ function renderRealTrades(){
   t.textContent = "";
   if (!S.rp){ note.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — actual fills unavailable."; return; }
   const hr = t.insertRow();
-  for (const h of ["Side","Opened → Closed","Avg fill in / out","Qty (BTC)","Gross P&L","Fees","Interest","Net P&L"]){
+  for (const h of ["Side","Opened → Closed","Entry / Exit","Qty (BTC)","Gross P&L","Fees","Interest","Net P&L"]){
     const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
   const eqHist = Array.isArray(S.rp.equity_history)
     ? S.rp.equity_history.map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
@@ -1068,15 +1068,26 @@ function renderRealTrades(){
     const o2 = document.createElement("div"); o2.className = "sub";
     o2.textContent = "→ " + (tr._open ? "open" : dt(tr.closed));
     c1.append(o1, o2);
-    /* actual average fill prices, once the tracker publishes them */
-    const eIn = tr.entry_px != null ? +tr.entry_px : (tr.avg_entry_px != null ? +tr.avg_entry_px : null);
-    const eOut = tr.exit_px != null ? +tr.exit_px : (tr.avg_exit_px != null ? +tr.avg_exit_px : null);
+    /* entry: the ACTUAL first fill that opened the trade (owner choice 2026-09-22), with the
+       running average (cost basis incl. top-ups) as a sub-line when it differs; exit: the
+       final closing fill, falling back to the weighted average. All actual Binance prices. */
+    const eAvg = tr.entry_px != null ? +tr.entry_px : (tr.avg_entry_px != null ? +tr.avg_entry_px : null);
+    const eFirst = tr.first_entry_px != null ? +tr.first_entry_px : null;
+    const eIn = eFirst != null ? eFirst : eAvg;
+    const xAvg = tr.exit_px != null ? +tr.exit_px : (tr.avg_exit_px != null ? +tr.avg_exit_px : null);
+    const xLast = tr.last_exit_px != null ? +tr.last_exit_px : null;
+    const eOut = xLast != null ? xLast : xAvg;
     if (eIn == null) pxPending = true;
     const cp = r.insertCell(); cp.className = "mono";
     const p1 = document.createElement("div"); p1.textContent = eIn != null ? fmtFull(eIn) : "—†";
+    cp.appendChild(p1);
+    if (eFirst != null && eAvg != null && Math.abs(eFirst - eAvg) >= 1){
+      const pa = document.createElement("div"); pa.className = "sub";
+      pa.textContent = "avg " + fmtFull(eAvg); cp.appendChild(pa);
+    }
     const p2 = document.createElement("div"); p2.className = "sub";
     p2.textContent = "→ " + (tr._open ? "open" : (eOut != null ? fmtFull(eOut) : "—†"));
-    cp.append(p1, p2);
+    cp.appendChild(p2);
     const qv = tr.max_qty != null ? +tr.max_qty : (tr.qty != null ? +tr.qty : null);
     const cq = r.insertCell(); cq.className = "mono";
     cq.textContent = qv != null ? qv.toFixed(5) : "—";
@@ -1102,11 +1113,12 @@ function renderRealTrades(){
     val(r, netv, eq0, true, tr._open ? (mtmEst ? " mtm est" : " mtm") : "");
   }
   let n = "ACTUAL Binance account record since 20 Sep 2026 (times UTC; pre-handover activity excluded). " +
-    "$ = real fills; % = vs the account equity when the trade opened. Avg fill = the volume-weighted " +
-    "price across ALL the trade's entry (or exit) fills, incl. small hourly top-ups — it can differ " +
-    "from the model's paper entry (the daily close where the signal fired) and moves as the position " +
-    "is rebalanced. Qty = the largest position size held during the trade. Fees = the platform " +
-    "trading fees Binance charged on the fills. Gross = P&L before costs; Net = after fees and interest.";
+    "$ = real fills; % = vs the account equity when the trade opened. Entry = the ACTUAL first fill " +
+    "that opened the trade (matches your Binance order history); the small 'avg' line is the running " +
+    "cost basis incl. hourly top-ups (what Binance's position screen shows), shown when it differs. " +
+    "Exit = the final closing fill. Both can differ from the model's paper entry (the daily close " +
+    "where the signal fired). Qty = the largest position size held during the trade. Fees = the " +
+    "platform trading fees Binance charged. Gross = P&L before costs; Net = after fees and interest.";
   if (intActual) n += " Interest = actual margin borrow interest over the trade (Binance interest history; " +
     "charged to the account hourly, not part of the fills). Interest since 20 Sep: $" + intSum.toFixed(2) + ".";
   if (intPending) n += " *Interest breakdown pending from the account tracker — that row's Net is after " +
