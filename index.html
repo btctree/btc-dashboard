@@ -304,6 +304,9 @@ document.addEventListener("touchmove", e => {
   if (ptrY != null && window.scrollY <= 0 && e.touches[0].clientY - ptrY > 80){ ptrY = null; loadAll(); }
 }, { passive: true });
 document.addEventListener("touchend", () => { ptrY = null; }, { passive: true });
+/* gentle auto-refresh: every 5 minutes while the page is visible, plus on returning to it */
+setInterval(() => { if (!document.hidden) loadAll(); }, 300e3);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) loadAll(); });
 
 function renderPrice(p){
   const el = document.getElementById("livepx"), sub = document.getElementById("pxsub");
