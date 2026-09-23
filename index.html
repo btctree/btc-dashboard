@@ -443,11 +443,23 @@ function renderM1Position(){
   const om = m1OpenEntry();
   const entryTxt = fmtFull(b.BY) + (om && Math.abs(om.price - b.BY) / b.BY < 0.005 ? " · " + om.date : "");
   const conf = st.confidence ? st.confidence.score + "/100 (" + st.confidence.bucket + ")" : "—";
+  /* your REAL fill (from the account tracker), when the account is in the same-direction trade —
+     shown beside the model's paper entry so the two are never mistaken for each other */
+  const rp = S.rp && S.rp.open;
+  let myFill = null, myAvg = null;
+  if (rp && (rp.side === "LONG" ? 1 : -1) === b.BW){
+    myAvg = rp.entry_px != null ? +rp.entry_px : (rp.avg_entry != null ? +rp.avg_entry : null);
+    myFill = rp.first_entry_px != null ? +rp.first_entry_px : myAvg;
+  }
+  /* the engine's BU is only a PRICE target for some engines; hide it when implausible */
+  const tgt = b.BU && st.price > 0 && b.BU > st.price * 0.3 && b.BU < st.price * 3 ? fmtFull(b.BU) : "—";
   const rows = [
     ["Direction", (long ? "LONG" : "SHORT") + " @ " + Math.round(lev) + "×"],
-    ["Entry", entryTxt],
+    ["Model entry", entryTxt],
+    ...(myFill != null ? [["Your fill (real)", fmtFull(myFill) +
+        (myAvg != null && Math.abs(myFill - myAvg) >= 1 ? " · avg " + fmtFull(myAvg) : "")]] : []),
     ["Trailing stop", b.BV ? fmtFull(b.BV) + " (" + Math.round((st.trail_pct || .07) * 100) + "% trail)" : "—"],
-    ["Target", b.BU ? fmtFull(b.BU) : "—"],
+    ["Target", tgt],
     ["Size", st.margin_pct != null ? Math.round(st.margin_pct * 100) + "% of equity as margin" : "—"],
     ["Confidence", conf],
   ];
@@ -459,7 +471,8 @@ function renderM1Position(){
   }
   const c = document.createElement("div"); c.className = "caveat";
   c.textContent = "As of " + st.last_date + " close · stop ratchets " + (long ? "up" : "down") +
-    " with price, never loosens · signal model, no orders are placed.";
+    " with price, never loosens. Model entry = the daily close where the signal fired (drives the " +
+    "stop & sizing); your real fill happens at the next hourly cycle's market price, so it differs.";
   box.appendChild(c);
 }
 
