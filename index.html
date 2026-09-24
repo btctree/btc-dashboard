@@ -278,7 +278,8 @@ function loadAll(){
        position geometry (direction x margin x leverage). Flat -> the value simply carries. */
     if (S.m1 && S.m1state && S.px > 0 && +S.m1state.price > 0){
       const st0 = S.m1state, sgn = st0.signal === "LONG" ? 1 : st0.signal === "SHORT" ? -1 : 0;
-      const fr = +st0.margin_pct || 0.5, lv = +st0.leverage || 0;
+      /* entry-frozen fraction: the daily curve books this trade at the ENTRY bucket */
+      const fr = +st0.entry_margin_pct || +st0.margin_pct || 0.5, lv = +st0.leverage || 0;
       const last = S.m1[S.m1.length - 1];
       const dNow = new Date().toISOString().slice(0, 10);
       if (dNow > last.d)
@@ -460,7 +461,8 @@ function renderM1Position(){
         (myAvg != null && Math.abs(myFill - myAvg) >= 1 ? " · avg " + fmtFull(myAvg) : "")]] : []),
     ["Trailing stop", b.BV ? fmtFull(b.BV) + " (" + Math.round((st.trail_pct || .07) * 100) + "% trail)" : "—"],
     ["Target", tgt],
-    ["Size", st.margin_pct != null ? Math.round(st.margin_pct * 100) + "% of equity as margin" : "—"],
+    ["Size", st.entry_margin_pct != null ? Math.round(st.entry_margin_pct * 100) + "% of equity as margin (entry bucket)"
+           : (st.margin_pct != null ? Math.round(st.margin_pct * 100) + "% of equity as margin" : "—")],
     ["Confidence", conf],
   ];
   for (const [k, v] of rows){
@@ -1021,6 +1023,18 @@ function renderTrades(){
         open = null;
       }
     }
+    if (open){                                                   // the OPEN trade, marked to live (like the Max B tab)
+      const lp = S.px > 0 ? S.px : (S.m1state && +S.m1state.price > 0 ? +S.m1state.price : null);
+      const r = t.insertRow();
+      dirCell(r, open.action === "Buy");
+      cell(r, open.date, open.price); cell(r, "open · mtm", lp);
+      const oret = lp ? (open.action === "Buy" ? lp / open.price - 1 : (open.price - lp) / open.price) : null;
+      const odN = tradeDays(open.date, null);
+      const oint = odN == null ? null : odN * (open.action === "Buy" ? 0.024 : 0.010);
+      retCell(r, oret);
+      costCell(r, "fee", 0.10, oint);
+      retCell(r, oret == null ? null : oret - 0.001 - (oint || 0) / 100);
+    }
     for (const tr of trades.slice(-12).reverse()){
       const r = t.insertRow();
       dirCell(r, tr.long);
@@ -1090,7 +1104,7 @@ function renderRealTrades(){
     const xAvg = tr.exit_px != null ? +tr.exit_px : (tr.avg_exit_px != null ? +tr.avg_exit_px : null);
     const xLast = tr.last_exit_px != null ? +tr.last_exit_px : null;
     const eOut = xLast != null ? xLast : xAvg;
-    if (eIn == null) pxPending = true;
+    if (eFirst == null) pxPending = true;   // showing the AVERAGE while the first-fill field is pending
     const cp = r.insertCell(); cp.className = "mono";
     const p1 = document.createElement("div"); p1.textContent = eIn != null ? fmtFull(eIn) : "—†";
     cp.appendChild(p1);
@@ -1136,7 +1150,7 @@ function renderRealTrades(){
     "charged to the account hourly, not part of the fills). Interest since 20 Sep: $" + intSum.toFixed(2) + ".";
   if (intPending) n += " *Interest breakdown pending from the account tracker — that row's Net is after " +
     "fees only; the interest itself is already inside the account equity above.";
-  if (pxPending) n += " †Average fill prices pending from the account tracker.";
+  if (pxPending) n += " †First-fill price pending from the account tracker — showing the average fill meanwhile.";
   note.textContent = n;
 }
 
