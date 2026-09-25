@@ -551,7 +551,12 @@ function drawReal(){
   }
 
   const view = [{ key: "M1 real account", col: COL.m1, pts: real }];
-  if (sim) view.push({ key: "Max B @50bp (sim)", col: COL.mb, pts: sim });
+  if (sim){
+    /* show Max B's CURRENT exposure so a near-flat sim line explains itself */
+    const mbExp = mbLiveExposure();
+    view.push({ key: "Max B sim" + (mbExp ? " · now " + Math.abs(mbExp).toFixed(2) + "× " +
+               (mbExp > 0 ? "long" : "short") : " · now flat"), col: COL.mb, pts: sim });
+  }
   /* BTC buy-and-hold: same start value put into spot BTC, no margin, no strategy */
   if (S.btcRT && S.btcRT.length > 1){
     const inWin = S.btcRT.filter(p => p.t >= REAL_START_TS);
