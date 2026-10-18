@@ -1,14 +1,14 @@
 {
   "state": {
     "BW": 1,
-    "BK": "Y",
+    "BK": "X",
     "BY": 86620.0,
     "BV": 80556.6,
     "BU": 83614.68
   },
-  "last_date": "2026-10-16",
-  "price": 81615.64,
-  "regime": "RANGING",
+  "last_date": "2026-10-17",
+  "price": 81491.04,
+  "regime": "TREND",
   "data_source": "Binance data.binance.vision + live klines top-up + CoinGecko pre-2017",
   "signal": "LONG",
   "confidence": {
@@ -25,9 +25,9 @@
   "margin_pct": 0.45,
   "next_action": null,
   "tg": {
-    "date": "2026-10-16",
-    "signal": "<b>BTC Daily Signal \u2014 2026-10-16</b>\nClose: <b>$81,616</b>\nMarket: RANGING (type: Chop) | Engine: Y\nAction: <b>\u23f8 HOLD long</b>\nDirection: <b>LONG</b> @ 5x\nEntry: $86,620\nTrailing stop: <b>$80,557</b>  (7% trailing \u2014 ratchets up with price, never loosens)\nSize: 60% of equity as margin (entry bucket)\nConfidence: 0/100 (Low) \u2014 relative setup strength\n<i>data: Binance data.binance.vision + live klines top-up + CoinGecko pre-2017</i>",
+    "date": "2026-10-17",
+    "signal": "<b>BTC Daily Signal \u2014 2026-10-17</b>\nClose: <b>$81,491</b>\nMarket: TREND (type: Trend) | Engine: X\nAction: <b>\u23f8 HOLD long</b>\nDirection: <b>LONG</b> @ 5x\nEntry: $86,620\nTrailing stop: <b>$80,557</b>  (7% trailing \u2014 ratchets up with price, never loosens)\nSize: 60% of equity as margin (entry bucket)\nConfidence: 0/100 (Low) \u2014 relative setup strength\n<i>data: Binance data.binance.vision + live klines top-up + CoinGecko pre-2017</i>",
     "next": null,
-    "report": "<b>\ud83d\udcc8 BTC Strategy Report \u2014 2026-10-16</b>\nPosition: <b>LONG</b> \u00b7 RANGING \u00b7 engine Y\n\n<b>Returns (unleveraged / strategy 5x\u00b72x)</b>\nToday: -0.8% / -2.6%\nWeek: -1.2% / -4.1%\nMonth: +0.0% / -6.1%\nHalf-year: +23.2% / +38.8%\nYear: +48.9% / +57.6%\n\n<b>Risk-adjusted (unleveraged curve)</b>\nMonth: Sharpe 0.15 \u00b7 Calmar 0.01\nHalf-year: Sharpe 1.37 \u00b7 Calmar 7.06\nYear: Sharpe 1.23 \u00b7 Calmar 6.66\nAll-time: Sharpe 1.41 \u00b7 Calmar 2.82\n\n<b>Recent vs long-run</b>\nWin rate 90d: 60% vs all-time 57% (+3 pts)\nTrades 90d: 5\n\nStrategy account (from $500, since 2013-04-28): <b>$500,854,898</b>\n<i>Binance data starts Aug-2017; the 12yr backtest ($533.4M \u2014 restated 2026-09-19: hold-through-neutral + 7% trailing stop) also counts 2014-2017. Leveraged ratios assume the stop holds intraday \u2014 optimistic.</i>"
+    "report": "<b>\ud83d\udcc8 BTC Strategy Report \u2014 2026-10-17</b>\nPosition: <b>LONG</b> \u00b7 TREND \u00b7 engine X\n\n<b>Returns (unleveraged / strategy 5x\u00b72x)</b>\nToday: -0.2% / -0.5%\nWeek: -1.8% / -5.9%\nMonth: -0.4% / -7.2%\nHalf-year: +23.0% / +38.1%\nYear: +48.6% / +56.8%\n\n<b>Risk-adjusted (unleveraged curve)</b>\nMonth: Sharpe -0.03 \u00b7 Calmar -0.82\nHalf-year: Sharpe 1.36 \u00b7 Calmar 7.00\nYear: Sharpe 1.22 \u00b7 Calmar 6.63\nAll-time: Sharpe 1.41 \u00b7 Calmar 2.82\n\n<b>Recent vs long-run</b>\nWin rate 90d: 50% vs all-time 57% (-7 pts)\nTrades 90d: 4\n\nStrategy account (from $500, since 2013-04-28): <b>$498,240,352</b>\n<i>Binance data starts Aug-2017; the 12yr backtest ($533.4M \u2014 restated 2026-09-19: hold-through-neutral + 7% trailing stop) also counts 2014-2017. Leveraged ratios assume the stop holds intraday \u2014 optimistic.</i>"
   }
 }
