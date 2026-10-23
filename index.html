@@ -404,6 +404,29 @@ function m1OpenEntry(){
   }
   return open;
 }
+function m1LoanRow(warn){
+  /* real-account margin loans from the tracker — rendered flat or in-trade so an
+     outstanding borrow (which accrues interest) is never invisible on the dashboard */
+  if (!S.rp) return null;                                    // feed-unreachable message lives elsewhere
+  const bw = S.rp.borrowed;
+  const r = document.createElement("div"); r.className = "kv";
+  const kk = document.createElement("span"); kk.className = "k"; kk.textContent = "Borrowed (real)";
+  const vv = document.createElement("span"); vv.className = "v mono";
+  if (!bw){ vv.textContent = "pending (tracker update)"; }
+  else {
+    const tot = +bw.total_usdt_value || 0, parts = [];
+    if (+bw.usdt >= 0.005) parts.push((+bw.usdt).toFixed(2) + " USDT");
+    if (+bw.btc >= 1e-8)   parts.push((+bw.btc).toFixed(6) + " BTC");
+    if (tot >= 0.005){
+      vv.textContent = "$" + tot.toFixed(2) + (parts.length ? " (" + parts.join(" + ") + ")" : "");
+      if (warn) vv.style.color = "var(--amb)";
+    } else vv.textContent = "none";
+  }
+  r.append(kk, vv); return r;
+}
+function m1LoanOutstanding(){
+  return !!(S.rp && S.rp.borrowed && +S.rp.borrowed.total_usdt_value >= 0.005);
+}
 function renderM1Position(){
   const st = S.m1state;
   if (!st) return;                                           // no live state -> card stays hidden
@@ -427,15 +450,23 @@ function renderM1Position(){
         const vv = document.createElement("span"); vv.className = "v mono"; vv.textContent = v;
         r.append(kk, vv); kvwrap.appendChild(r);
       }
+      const lr = m1LoanRow(true); if (lr) kvwrap.appendChild(lr);
       box.appendChild(kvwrap);
       const c = document.createElement("div"); c.className = "caveat";
       c.textContent = "⬆ Long: " + (na.long_condition || "—") + "  ·  ⬇ Short: " + (na.short_condition || "—") +
         " — as of " + st.last_date + " close. Entries are regime-gated: conditions, not guaranteed fills.";
       box.appendChild(c);
     } else {
+      const lr = m1LoanRow(true);
+      if (lr){ const w = document.createElement("div"); w.style.marginTop = "10px"; w.appendChild(lr); box.appendChild(w); }
       const c = document.createElement("div"); c.className = "caveat";
       c.textContent = "No open position as of " + st.last_date + " close.";
       box.appendChild(c);
+    }
+    if (m1LoanOutstanding()){
+      const w = document.createElement("div"); w.className = "caveat";
+      w.textContent = "⚠ outstanding margin loan while flat — interest accrues until it is repaid.";
+      box.appendChild(w);
     }
     return;
   }
@@ -471,6 +502,7 @@ function renderM1Position(){
     const vv = document.createElement("span"); vv.className = "v mono"; vv.textContent = v;
     r.append(kk, vv); box.appendChild(r);
   }
+  const lr = m1LoanRow(false); if (lr) box.appendChild(lr);   // in-trade borrow is expected: no amber
   const c = document.createElement("div"); c.className = "caveat";
   c.textContent = "As of " + st.last_date + " close · stop ratchets " + (long ? "up" : "down") +
     " with price, never loosens. Model entry = the daily close where the signal fired (drives the " +
