@@ -6,8 +6,8 @@
     "BV": 0.0,
     "BU": 0.0
   },
-  "last_date": "2026-10-22",
-  "price": 81416.09,
+  "last_date": "2026-10-23",
+  "price": 81189.43,
   "regime": "RANGING",
   "data_source": "Binance data.binance.vision + live klines top-up + CoinGecko pre-2017",
   "signal": "FLAT",
@@ -23,29 +23,29 @@
   "next_action": {
     "engine": "Y",
     "levels": {
-      "sma20": 83085.97,
-      "sma50": 81742.66,
-      "boll_up": 86177.39,
-      "boll_dn": 79994.55,
-      "rsi": 48.8,
-      "macd": 61.5,
-      "macd_signal": 259.7
+      "sma20": 82907.76,
+      "sma50": 81824.18,
+      "boll_up": 86005.33,
+      "boll_dn": 79810.19,
+      "rsi": 44.5,
+      "macd": -51.3,
+      "macd_signal": 197.5
     },
-    "long_trigger": 85486.89,
-    "short_trigger": 80398.39,
+    "long_trigger": 86263.77,
+    "short_trigger": 80174.56,
     "regime": "RANGING",
     "bias": "UP",
     "zone": "BOTTOM",
-    "peak": 86177.39,
-    "mid": 83085.97,
-    "bottom": 79994.55,
-    "long_condition": "price fades to the lower band ($79,995) with RSI turning up",
-    "short_condition": "price extends to the upper band ($86,177) with RSI turning down"
+    "peak": 86005.33,
+    "mid": 82907.76,
+    "bottom": 79810.19,
+    "long_condition": "price fades to the lower band ($79,810) with RSI turning up",
+    "short_condition": "price extends to the upper band ($86,005) with RSI turning down"
   },
   "tg": {
-    "date": "2026-10-22",
-    "signal": "<b>BTC Daily Signal \u2014 2026-10-22</b>\nClose: <b>$81,416</b>\nMarket: RANGING (type: Chop) | Engine: Y\nAction: <b>\u26aa FLAT \u2014 no position</b>\n<i>data: Binance data.binance.vision + live klines top-up + CoinGecko pre-2017</i>",
-    "next": "<b>\ud83c\udfaf BTC Next-Action Watch \u2014 2026-10-22</b>\nCurrently <b>FLAT</b> \u00b7 price $81,416 \u00b7 regime RANGING\nPotential: <b>UP \u2b06\ufe0f</b>\nRange \u2014 Peak $86,177 \u00b7 Mid $83,086 \u00b7 Bottom $79,995\nPrice now in the <b>BOTTOM</b> of the range\n\n\u2b06\ufe0f To go <b>LONG</b>: price fades to the lower band ($79,995) with RSI turning up (est. ~$85,487)\n\u2b07\ufe0f To go <b>SHORT</b>: price extends to the upper band ($86,177) with RSI turning down (est. ~$80,398)\n\nLevels \u2014 SMA20 $83,086 \u00b7 SMA50 $81,743 \u00b7 Boll $79,995-$86,177 \u00b7 RSI 48.8 \u00b7 MACD 62\n<i>Entries are regime-gated \u2014 these are levels/conditions, not guaranteed fills.</i>",
-    "report": "<b>\ud83d\udcc8 BTC Strategy Report \u2014 2026-10-22</b>\nPosition: <b>FLAT</b> \u00b7 RANGING \u00b7 engine Y\n\n<b>Returns (unleveraged / strategy 5x\u00b72x)</b>\nToday: +0.0% / +0.0%\nWeek: +0.0% / +0.0%\nMonth: -5.8% / -18.0%\nHalf-year: +22.5% / +35.7%\nYear: +48.0% / +54.1%\n\n<b>Risk-adjusted (unleveraged curve)</b>\nMonth: Sharpe -3.95 \u00b7 Calmar -8.20\nHalf-year: Sharpe 1.34 \u00b7 Calmar 6.83\nYear: Sharpe 1.22 \u00b7 Calmar 6.55\nAll-time: Sharpe 1.41 \u00b7 Calmar 2.81\n\n<b>Recent vs long-run</b>\nWin rate 90d: 40% vs all-time 49% (-9 pts)\nTrades 90d: 5\n\nStrategy account (from $500, since 2013-04-28): <b>$489,666,115</b>\n<i>Binance data starts Aug-2017; the 12yr backtest ($533.4M \u2014 restated 2026-09-19: hold-through-neutral + 7% trailing stop) also counts 2014-2017. Leveraged ratios assume the stop holds intraday \u2014 optimistic.</i>"
+    "date": "2026-10-23",
+    "signal": "<b>BTC Daily Signal \u2014 2026-10-23</b>\nClose: <b>$81,189</b>\nMarket: RANGING (type: Chop) | Engine: Y\nAction: <b>\u26aa FLAT \u2014 no position</b>\n<i>data: Binance data.binance.vision + live klines top-up + CoinGecko pre-2017</i>",
+    "next": "<b>\ud83c\udfaf BTC Next-Action Watch \u2014 2026-10-23</b>\nCurrently <b>FLAT</b> \u00b7 price $81,189 \u00b7 regime RANGING\nPotential: <b>UP \u2b06\ufe0f</b>\nRange \u2014 Peak $86,005 \u00b7 Mid $82,908 \u00b7 Bottom $79,810\nPrice now in the <b>BOTTOM</b> of the range\n\n\u2b06\ufe0f To go <b>LONG</b>: price fades to the lower band ($79,810) with RSI turning up (est. ~$86,264)\n\u2b07\ufe0f To go <b>SHORT</b>: price extends to the upper band ($86,005) with RSI turning down (est. ~$80,175)\n\nLevels \u2014 SMA20 $82,908 \u00b7 SMA50 $81,824 \u00b7 Boll $79,810-$86,005 \u00b7 RSI 44.5 \u00b7 MACD -51\n<i>Entries are regime-gated \u2014 these are levels/conditions, not guaranteed fills.</i>",
+    "report": "<b>\ud83d\udcc8 BTC Strategy Report \u2014 2026-10-23</b>\nPosition: <b>FLAT</b> \u00b7 RANGING \u00b7 engine Y\n\n<b>Returns (unleveraged / strategy 5x\u00b72x)</b>\nToday: +0.0% / +0.0%\nWeek: +0.0% / +0.0%\nMonth: -3.8% / -12.4%\nHalf-year: +22.5% / +35.7%\nYear: +48.0% / +54.1%\n\n<b>Risk-adjusted (unleveraged curve)</b>\nMonth: Sharpe -2.74 \u00b7 Calmar -5.94\nHalf-year: Sharpe 1.34 \u00b7 Calmar 6.83\nYear: Sharpe 1.22 \u00b7 Calmar 6.55\nAll-time: Sharpe 1.41 \u00b7 Calmar 2.81\n\n<b>Recent vs long-run</b>\nWin rate 90d: 40% vs all-time 49% (-9 pts)\nTrades 90d: 5\n\nStrategy account (from $500, since 2013-04-28): <b>$489,666,115</b>\n<i>Binance data starts Aug-2017; the 12yr backtest ($533.4M \u2014 restated 2026-09-19: hold-through-neutral + 7% trailing stop) also counts 2014-2017. Leveraged ratios assume the stop holds intraday \u2014 optimistic.</i>"
   }
 }
