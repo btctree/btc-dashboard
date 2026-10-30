@@ -331,8 +331,12 @@ function renderSignals(){
     const dir = S.m1state && S.m1state.signal ? S.m1state.signal
               : (lastM1State() ? lastM1State().dir : "FLAT");
     if (S.m1live){
-      const age = Math.round((Date.now() - ms(endD)) / DAY);
-      if (age <= 4){ m1tag.textContent = "LIVE"; m1tag.className = "tag live"; }
+      /* age from the SIGNAL's own date (sync audit 2026-10-30): the live-marked curve end is
+         always "today", so a dead signal cron used to show LIVE forever. >2d matches the
+         trader's own staleness refusal. */
+      const ageSrc = S.m1state && S.m1state.last_date ? ms(S.m1state.last_date) : ms(endD);
+      const age = Math.round((Date.now() - ageSrc) / DAY);
+      if (age <= 2){ m1tag.textContent = "LIVE"; m1tag.className = "tag live"; }
       else { m1tag.textContent = "LAGGING " + age + "d"; m1tag.className = "tag"; }
     } else { m1tag.textContent = "STATIC"; m1tag.className = "tag"; }
     const chip = document.createElement("span"); chip.className = "chipdir " + dir;
@@ -410,13 +414,14 @@ function m1LoanRow(warn){
   if (!S.rp) return null;                                    // feed-unreachable message lives elsewhere
   const bw = S.rp.borrowed;
   const r = document.createElement("div"); r.className = "kv";
-  const kk = document.createElement("span"); kk.className = "k"; kk.textContent = "Borrowed (real)";
+  const kk = document.createElement("span"); kk.className = "k"; kk.textContent = "Owed (loan + interest)";
   const vv = document.createElement("span"); vv.className = "v mono";
   if (!bw){ vv.textContent = "pending (tracker update)"; }
   else {
     const tot = +bw.total_usdt_value || 0, parts = [];
     if (+bw.usdt >= 0.005) parts.push((+bw.usdt).toFixed(2) + " USDT");
     if (+bw.btc >= 1e-8)   parts.push((+bw.btc).toFixed(6) + " BTC");
+    if (+bw.bnb >= 1e-8)   parts.push((+bw.bnb).toFixed(6) + " BNB");
     if (tot >= 0.005){
       vv.textContent = "$" + tot.toFixed(2) + (parts.length ? " (" + parts.join(" + ") + ")" : "");
       if (warn) vv.style.color = "var(--amb)";
@@ -465,7 +470,8 @@ function renderM1Position(){
     }
     if (m1LoanOutstanding()){
       const w = document.createElement("div"); w.className = "caveat";
-      w.textContent = "⚠ outstanding margin loan while flat — interest accrues until it is repaid.";
+      w.textContent = "⚠ balance owed while flat (margin loan and/or accrued interest) — repaying " +
+        "it keeps new borrowing unblocked. Unpaid BNB interest froze all borrowing on 30 Oct 2026.";
       box.appendChild(w);
     }
     return;
@@ -502,11 +508,25 @@ function renderM1Position(){
     const vv = document.createElement("span"); vv.className = "v mono"; vv.textContent = v;
     r.append(kk, vv); box.appendChild(r);
   }
-  const lr = m1LoanRow(false); if (lr) box.appendChild(lr);   // in-trade borrow is expected: no amber
+  /* account-truth row (sync audit 2026-10-30): the model being in a trade never implies the
+     ACCOUNT is — the hack borrow-freeze held this card on SHORT while the account sat flat,
+     and the only hint was a missing row. Say it explicitly, in amber. */
+  const inThisTrade = !!(rp && (rp.side === "LONG" ? 1 : -1) === b.BW);
+  if (S.rp && !inThisTrade){
+    const r = document.createElement("div"); r.className = "kv";
+    const kk = document.createElement("span"); kk.className = "k"; kk.textContent = "Your account (real)";
+    const vv = document.createElement("span"); vv.className = "v mono";
+    vv.textContent = rp ? ("in a " + rp.side + " position — NOT this model trade")
+                        : "NOT in this trade (flat — entry pending or blocked)";
+    vv.style.color = "var(--amb)";
+    r.append(kk, vv); box.appendChild(r);
+  }
+  /* amber on the owed row whenever the ACCOUNT is flat — in-trade borrow is the expected case */
+  const lr = m1LoanRow(!(S.rp && S.rp.open)); if (lr) box.appendChild(lr);
   const c = document.createElement("div"); c.className = "caveat";
   c.textContent = "As of " + st.last_date + " close · stop ratchets " + (long ? "up" : "down") +
     " with price, never loosens. Model entry = the daily close where the signal fired (drives the " +
-    "stop & sizing); your real fill happens at the next hourly cycle's market price, so it differs.";
+    "stop & sizing); the account fills at an hourly cycle's market price once executable, so it differs.";
   box.appendChild(c);
 }
 
@@ -671,7 +691,9 @@ function drawReal(){
     "Amber = the Max B @50bp backtest simulation rebased to the same start (paper, not real fills). " +
     "Gray = the same start value held in spot BTC — no margin, no strategy. All three lines are " +
     "marked to the LIVE BTC price at the right edge; between Max B's daily closes its mark assumes " +
-    "the current published exposure (estimate).";
+    "the current published exposure (estimate). Includes a −$1.44 definitional restatement on " +
+    "29 Oct 2026 (BNB balances and liabilities are now counted in equity — not a trading loss)." +
+    (S.rp && S.rp.bnb_fee_note ? " " + S.rp.bnb_fee_note : "");
 
   /* crosshair + tooltip */
   const tip2 = document.getElementById("tip2");
@@ -1107,7 +1129,9 @@ function renderRealTrades(){
   /* the record starts at the M1 takeover — pre-handover activity is excluded */
   const rows = [];
   if (S.rp.open) rows.push(Object.assign({}, S.rp.open, { _open: true }));
-  for (const tr of (S.rp.recent_closed || []).slice().reverse())
+  /* recent_closed arrives newest-first from the tracker — keep it that way so this table
+     matches the model-trade tables beside it (sync audit 2026-10-30) */
+  for (const tr of (S.rp.recent_closed || []))
     if (parseRpTs(tr.closed) >= REAL_START_TS) rows.push(tr);
   if (!rows.length){ note.textContent = "No real trades since 20 Sep 2026 yet — the record starts at the M1 takeover " +
     "(the pre-handover Max B-era trade is excluded). The first M1 fill (order ids m1tr-…) appears after the " +
@@ -1183,11 +1207,16 @@ function renderRealTrades(){
     "Exit = the final closing fill. Both can differ from the model's paper entry (the daily close " +
     "where the signal fired). Qty = the largest position size held during the trade. Fees = the " +
     "platform trading fees Binance charged. Gross = P&L before costs; Net = after fees and interest.";
-  if (intActual) n += " Interest = actual margin borrow interest over the trade (Binance interest history; " +
-    "charged to the account hourly, not part of the fills). Interest since 20 Sep: $" + intSum.toFixed(2) + ".";
+  if (intActual){
+    n += " Interest = actual margin borrow interest over the trade (Binance interest history; " +
+      "charged to the account hourly, not part of the fills). Interest on the trades shown: $" +
+      intSum.toFixed(2) + (S.rp.total_interest_usdt != null
+        ? "; total since the 12 Aug 2026 baseline: $" + (+S.rp.total_interest_usdt).toFixed(2) : "") + ".";
+  }
   if (intPending) n += " *Interest breakdown pending from the account tracker — that row's Net is after " +
     "fees only; the interest itself is already inside the account equity above.";
-  if (pxPending) n += " †First-fill price pending from the account tracker — showing the average fill meanwhile.";
+  if (pxPending) n += " †Price fields absent on that row (recorded before the tracker published fill " +
+    "prices) — they populate at the tracker's next hourly update.";
   note.textContent = n;
 }
 
