@@ -60,23 +60,84 @@
   .kv .k{color:var(--mut)}
   .kv .v{font-weight:600; text-align:right}
 
-  /* chips + legend + chart */
+  /* chips + chart */
   .filters{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px}
   .chip{font-size:12px; letter-spacing:.05em; color:var(--mut); background:none;
     border:1px solid var(--line); border-radius:99px; padding:9px 14px; cursor:pointer; font-family:inherit; min-height:38px}
   .chip.on{color:var(--ink); border-color:var(--mut); background:rgba(139,152,169,.12)}
   .chip:focus-visible{outline:2px solid var(--blu); outline-offset:1px}
   .spacer{flex:1}
-  .legend{display:flex; gap:14px; flex-wrap:wrap; font-size:11.5px; color:var(--mut); margin:2px 2px 6px}
-  .legend .k{display:inline-flex; align-items:center; gap:6px}
   .lk{display:inline-block; width:14px; height:0; border-top:2.5px solid; border-radius:2px}
   .chartbox{position:relative}
   svg{display:block; width:100%; height:auto}
-  .tip{position:absolute; pointer-events:none; background:#0b0e14f2; border:1px solid var(--line);
-    border-radius:8px; padding:7px 10px; font-size:11.5px; display:none; min-width:140px; z-index:5}
-  .tip .d{color:var(--mut); margin-bottom:3px}
-  .tip .r{display:flex; align-items:center; gap:7px; margin-top:2px}
-  .tip .r .v{font-weight:700; margin-left:auto}
+  /* charts are for POINTING, not selecting: no text selection or long-press callout; a sideways
+     drag scrubs the reading while an up/down drag still scrolls the page */
+  .chartbox svg{touch-action:pan-y pinch-zoom; -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; cursor:crosshair}
+  .chartbox svg:focus{outline:none}
+  .chartbox svg:focus-visible{outline:2px solid var(--blu); outline-offset:2px; border-radius:6px}
+  /* quick repeated taps on the controls must never trigger the browser's double-tap zoom */
+  .pb,.rb,.chip,.xbtn,.linkbtn{touch-action:manipulation}
+
+  /* period: every preset one tap away (44px targets); exact dates only on demand */
+  .pgrid{display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-bottom:8px}
+  .pgrid.row{display:flex}
+  .pgrid.row .pb{flex:1}
+  .pb{font:inherit; font-size:13px; font-weight:600; color:var(--mut); background:none; border:1px solid var(--line);
+    border-radius:10px; min-height:44px; padding:0 4px; cursor:pointer; white-space:nowrap}
+  .pb.on{color:var(--ink); border-color:var(--blu); background:rgba(77,163,255,.16); font-weight:700}
+  .pb:focus-visible,.rb:focus-visible,.linkbtn:focus-visible,.xbtn:focus-visible{outline:2px solid var(--blu); outline-offset:1px}
+  .prange{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--mut); margin:0 2px 10px;
+    min-height:24px; font-variant-numeric:tabular-nums}
+  .prange .pt{flex:1; min-width:0}
+  .prange b{color:var(--ink); font-weight:600}
+  .dpanel{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; margin-bottom:10px}
+  @media (max-width:351px){ .dpanel{grid-template-columns:minmax(0,1fr)} }   /* 320px phones: stack the two dates */
+  .dpanel[hidden]{display:none}
+  .dpanel label,.amt label{display:block; font-size:11px; letter-spacing:.06em; color:var(--mut); text-transform:uppercase}
+  /* 16px inputs: anything smaller makes iOS zoom the page on focus */
+  .dpanel input,.amtbox input{display:block; width:100%; min-width:0; margin-top:4px; background:var(--bg); color:var(--ink);
+    border:1px solid var(--line); border-radius:10px; padding:0 10px; font:inherit; font-size:16px; min-height:44px;
+    color-scheme:dark}
+  .dpanel input:focus-visible,.amtbox input:focus-visible{outline:2px solid var(--blu); outline-offset:1px}
+  .linkbtn{grid-column:1 / -1; justify-self:start; background:none; border:none; color:var(--blu); font:inherit;
+    font-size:12.5px; padding:6px 2px; min-height:40px; cursor:pointer; text-align:left}
+
+  /* start amount */
+  .amt{margin-bottom:6px}
+  .amtbox{position:relative; margin-top:4px}
+  .amtbox .cur{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--mut);
+    font-weight:700; font-size:16px; pointer-events:none}
+  .amtbox input{margin-top:0; padding-left:28px; padding-right:50px; min-height:48px;
+    font-family:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace}
+  .xbtn{position:absolute; right:2px; top:2px; width:44px; height:44px; background:none; border:none;
+    color:var(--mut); font-size:22px; line-height:1; cursor:pointer; border-radius:9px}
+  .help{font-size:11.5px; color:var(--mut); margin:0 2px 10px; line-height:1.45}
+  .help.warn{color:var(--amb)}
+
+  /* readout: the legend doubles as the reading for the pointed date — fixed place, fixed
+     height, so it can never slide off-screen or sit under a thumb */
+  .ro{margin:2px 0 6px}
+  .roh{display:flex; align-items:center; gap:6px; min-height:50px; font-size:12px; color:var(--mut); line-height:1.35}
+  .roh .rot{flex:1; min-width:0}
+  .roh .rot b{color:var(--ink); font-weight:600}
+  .robtns{display:flex; gap:6px}
+  .robtns[hidden]{display:none}
+  .rb{font:inherit; font-size:16px; font-weight:700; color:var(--ink); background:none; border:1px solid var(--line);
+    border-radius:10px; min-width:44px; min-height:40px; padding:0 8px; cursor:pointer}
+  .rb.lat{font-size:12px; font-weight:600}
+  .rr{display:grid; grid-template-columns:16px minmax(0,1fr) auto 78px; align-items:center; gap:6px;
+    min-height:26px; font-size:13px}
+  .rr .rn{color:var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .rr .rv{font-weight:700; font-size:14px; text-align:right; font-variant-numeric:tabular-nums}
+  .rr .rp{text-align:right; font-size:12.5px; font-variant-numeric:tabular-nums}
+  .hint{font-size:11.5px; color:var(--mut); text-align:center; margin-top:6px}
+  .notes{font-size:11.5px; color:var(--amb); line-height:1.5; margin-top:8px}
+  .notes:empty{display:none}
+  .notes div + div{margin-top:4px}
+  .rtable{margin-top:10px}
+  details.more{margin-top:4px; font-size:11px; color:var(--mut); line-height:1.5}
+  details.more summary{cursor:pointer; color:var(--blu); padding:8px 0}
 
   table{width:100%; border-collapse:collapse; font-size:12.5px}
   th{color:var(--mut); font-weight:600; text-align:right; padding:5px 6px; font-size:10px;
@@ -140,25 +201,52 @@
   </div>
 
   <div class="card">
-    <h2>Equity — $500 start, both models</h2>
-    <div class="filters" id="rangeRow"></div>
-    <div class="legend" id="legend"></div>
-    <div class="chartbox">
-      <svg id="chart" viewBox="0 0 640 330" role="img" aria-label="Equity curves, M1 vs M5 versus Max B, log scale"></svg>
-      <div class="tip" id="tip"></div>
+    <h2>Backtest — what a start amount became<span class="tag">NOT REAL MONEY</span></h2>
+    <div class="amt">
+      <label for="amtIn">Start amount</label>
+      <div class="amtbox"><span class="cur mono">$</span>
+        <input id="amtIn" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done"
+               placeholder="500" aria-describedby="amtHelp">
+        <button id="amtClr" class="xbtn" type="button" aria-label="Clear the amount (back to the standard $500)" hidden>&times;</button>
+      </div>
     </div>
+    <div class="help" id="amtHelp">Blank = the models' standard $500. Type your own amount to see it in your dollars.</div>
+    <div class="pgrid" id="pg1" role="group" aria-label="Period"></div>
+    <div class="prange"><span class="pt" id="pr1"></span></div>
+    <div class="dpanel" id="dp1" hidden>
+      <label>From<input type="date" id="df1"></label>
+      <label>To<input type="date" id="dt1"></label>
+      <button class="linkbtn" id="dq1" type="button">Use 20 Sep 2026 → today (the real-account period)</button>
+    </div>
+    <div class="ro" id="ro1"></div>
+    <div class="chartbox">
+      <svg id="chart" role="img" aria-label="Backtest: a start amount in M1 vs M5, Max B and BTC hold over the chosen period, log scale"></svg>
+    </div>
+    <div class="hint" id="hint1" hidden>Touch the chart and slide sideways to read any date</div>
+    <div class="filters" id="modeRow" style="margin:10px 0 0"></div>
+    <table id="risk1" class="rtable"></table>
+    <div class="notes" id="notes1"></div>
     <div class="caveat" id="chartNote">loading curves…</div>
+    <details class="more"><summary>More about this chart</summary><div id="chartMore"></div></details>
   </div>
 
   <div class="card">
-    <h2>Real account vs Max B sim — from 20 Sep 2026</h2>
-    <div class="filters" id="realDisp"></div>
-    <div class="legend" id="legend2"></div>
-    <div class="chartbox">
-      <svg id="chart2" viewBox="0 0 640 300" role="img" aria-label="Actual account equity versus the Max B simulation, both from the same start value on 20 September 2026, linear scale"></svg>
-      <div class="tip" id="tip2"></div>
+    <h2>Real account vs Max B sim</h2>
+    <div class="pgrid row" id="pg2" role="group" aria-label="Period"></div>
+    <div class="prange"><span class="pt" id="pr2"></span><span id="realDisp" style="display:flex; gap:6px"></span></div>
+    <div class="dpanel" id="dp2" hidden>
+      <label>From<input type="date" id="df2"></label>
+      <label>To<input type="date" id="dt2"></label>
     </div>
+    <div class="ro" id="ro2"></div>
+    <div class="chartbox">
+      <svg id="chart2" role="img" aria-label="Actual account equity versus the Max B simulation and BTC hold over the chosen period, linear scale"></svg>
+    </div>
+    <div class="hint" id="hint2" hidden>Touch the chart and slide sideways to read any date</div>
+    <div class="notes" id="notes2"></div>
+    <div class="caveat" id="rec2" hidden></div>
     <div class="caveat" id="chart2Note">loading…</div>
+    <details class="more"><summary>More about this chart</summary><div id="chart2More"></div></details>
   </div>
 
   <div class="card">
@@ -167,7 +255,8 @@
     <div class="caveat">Different cost models: M1 vs M5 uses real fees + funding with 1-min-validated intraday stops
       (curve frozen at its last regeneration). Max B headline uses 50 bp slippage per side. Directly comparable
       only as order-of-magnitude — see scenarios below. *M1 ratio stats are from the $533M backtest anchor
-      (2026-09-19 restatement); the Final cell is live and has grown since.</div>
+      (2026-09-19 restatement); the Final cell is live and has grown since. M1's worst dip (and the Calmar
+      built on it) counts closed trades only before mid-Sep 2026 — falls inside open trades were deeper.</div>
   </div>
 
   <div class="card">
@@ -231,10 +320,114 @@ const fmtPctC = r => { const p = (r - 1) * 100, a = Math.abs(p), s = p >= 0 ? "+
   return a >= 9.995e5 ? s + (a/1e6).toFixed(a >= 9.995e6 ? 0 : 1) + "M%"
        : a >= 999.5   ? s + (a/1e3).toFixed(a >= 9995 ? 0 : 1) + "K%"
        : s + a.toFixed(a >= 10 ? 0 : 1) + "%"; };
+const iso = t => new Date(t).toISOString().slice(0, 10);
+const fmtDay = t => { const x = new Date(t); return x.getUTCDate() + " " + MON[x.getUTCMonth()] + " " + x.getUTCFullYear(); };
+const fmtDT = t => { const x = new Date(t);
+  return x.getUTCDate() + " " + MON[x.getUTCMonth()] + ", " + String(x.getUTCHours()).padStart(2, "0") + ":" +
+         String(x.getUTCMinutes()).padStart(2, "0") + " UTC"; };
+function fmtSpan(a, b){
+  const d = Math.max(1, Math.floor((b - a) / DAY + 1e-6));   // whole days elapsed: "1 wk" reads 7 days at any hour
+  if (d < 60) return d + (d === 1 ? " day" : " days");
+  if (d < 730){ const m = Math.round(d / 30.44); return m === 12 ? "1 year" : m + " months"; }
+  return (d / 365.25).toFixed(1).replace(/\.0$/, "") + " years";
+}
+/* hypothetical (backtest) money: 3 significant figures and never cents — precision is how
+   this page tells backtest dollars from the real account's */
+function fmtHyp(v){
+  const a = Math.abs(v), sg = v < 0 ? "−" : "";
+  if (!(a > 0)) return "$0";
+  if (a < 9995) return sg + "$" + Number(a.toPrecision(3)).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  const U = ["K", "M", "B", "T", "Q"]; let u = 1e3, i = 0;      // Q = quadrillion (a capped amount over 12 years)
+  while (i < 4 && a / u >= 999.5){ u *= 1e3; i++; }
+  return sg + "$" + Number((a / u).toPrecision(3)) + U[i];
+}
+/* a period's return from its growth ratio: percent while readable, a multiple beyond that
+   ("+13,811,135%" is not readable; "×138K" is) */
+function fmtRet(r){
+  const p = (r - 1) * 100, a = Math.abs(p), sg = p < 0 ? "−" : "+";
+  if (a >= 99999.5){
+    const U = ["K", "M", "B", "T"]; let u = 1e3, i = 0;
+    while (i < 3 && r / u >= 999.5){ u *= 1e3; i++; }        // never "×1000K"
+    return "×" + Number((r / u).toPrecision(3)) + U[i];
+  }
+  if (a >= 999.5) return sg + Math.round(a).toLocaleString("en-US") + "%";
+  return a < 0.05 ? "0.0%" : sg + a.toFixed(1) + "%";
+}
+const fmtAmt = v => "$" + v.toLocaleString("en-US", Number.isInteger(v) ? { maximumFractionDigits: 0 }
+                                                   : { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/* axis labels keep just enough decimals to tell neighbouring ticks apart */
+const dpFor = s => { for (let d = 0; d < 4; d++) if (Math.abs(s * 10 ** d - Math.round(s * 10 ** d)) < 1e-6) return d; return 4; };
+function fmtAxUSD(v, step){
+  if (v < 1e4){ const dp = dpFor(step || v);            // "$1,250", not "$1.25K"
+    return "$" + v.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp }); }
+  const [u, sfx] = v >= 1e12 ? [1e12, "T"] : v >= 1e9 ? [1e9, "B"] : v >= 1e6 ? [1e6, "M"] : [1e3, "K"];
+  return "$" + (v / u).toFixed(dpFor((step || v) / u)) + sfx;
+}
+/* a typed amount in either notation: 1,234.56 / 1.234,56 / 1000,5 / 1 000 */
+function parseAmt(str){
+  let s = String(str || "").replace(/[\s$]/g, "");
+  if (s === "") return null;
+  const lc = s.lastIndexOf(","), ld = s.lastIndexOf(".");
+  if (lc >= 0 && ld >= 0) s = lc > ld ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");   // the later mark is the decimal one
+  else if (lc >= 0) s = /^\d+,\d{1,2}$/.test(s) ? s.replace(",", ".") : s.replace(/,/g, "");           // 1000,5 = decimal comma; 1,000 / 5,0000 / 1,234,567 = grouping
+  return /^(\d+\.?\d*|\.\d+)$/.test(s) ? Number(s) : NaN;
+}
+
+/* ── periods: quick presets or exact From/To dates ── */
+/* calendar-accurate "n months before t" (UTC; the day is clamped to the target month's length) */
+function monthsBack(t, n){
+  const x = new Date(t), y = x.getUTCFullYear(), m = x.getUTCMonth() - n;
+  const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  return Date.UTC(y, m, Math.min(x.getUTCDate(), dim), x.getUTCHours(), x.getUTCMinutes());
+}
+const PRESETS = [["1M", 1], ["3M", 3], ["6M", 6], ["1Y", 12], ["2Y", 24], ["3Y", 36], ["5Y", 60], ["10Y", 120], ["ALL", 0]];
+const PRESETS_RT = [["1W", -7], ["1M", 1], ["3M", 3], ["6M", 6], ["1Y", 12], ["ALL", 0]];   // n < 0 = days
+const PLAB = { "1W": "1 wk", "1M": "1 mo", "3M": "3 mo", "6M": "6 mo", "1Y": "1 yr", "2Y": "2 yr",
+               "3Y": "3 yr", "5Y": "5 yr", "10Y": "10 yr", "ALL": "All" };
+const presetStart = (n, hi) => n < 0 ? hi + n * DAY : monthsBack(hi, n);
+/* a chart's period state resolved against its data bounds -> { a, b } (ms).
+   ONE convention on both charts: a period runs from 00:00 UTC on its From date (= the previous
+   day's close) to the END of its To date; to: null follows the latest data. Preset starts snap
+   to 00:00 UTC so a daily close and an hourly snapshot share one true starting moment. */
+function resolveWin(st, lo, hi, presets){
+  if (st.preset){
+    const p = presets.find(q => q[0] === st.preset), n = p ? p[1] : 0;
+    return { a: n === 0 ? lo : Math.max(lo, Math.floor(presetStart(n, hi) / DAY) * DAY), b: hi };
+  }
+  const a0 = st.from ? ms(st.from) : lo, b0 = st.to ? ms(st.to) + DAY : hi;
+  const a = Math.max(lo, Math.min(a0, hi)), b = Math.max(lo, Math.min(b0, hi));
+  return b > a ? { a, b } : { a: lo, b: hi, bad: true };     // dates outside the data: show everything and SAY so
+}
+/* the part of a time-sorted series inside [a, b], with points AT both edges taken from `at`
+   (never invented beyond the data: only used where a and b lie inside the series) */
+function clipWin(pts, a, b, at){
+  const out = pts.filter(p => p.t >= a && p.t <= b), n = pts.length;
+  if (!n) return out;
+  if ((!out.length || out[0].t > a) && pts[0].t <= a && pts[n - 1].t >= a){
+    const v = at(pts, a); if (v != null) out.unshift({ t: a, v }); }
+  if (out.length && out[out.length - 1].t < b && pts[n - 1].t >= b){
+    const v = at(pts, b); if (v != null) out.push({ t: b, v }); }
+  return out;
+}
+/* thin a long series for drawing (keeps both ends) */
+function thin(pts, max){
+  if (pts.length <= max) return pts;
+  const stride = Math.ceil(pts.length / max), out = [];
+  for (let i = 0; i < pts.length; i += stride) out.push(pts[i]);
+  if (out[out.length - 1] !== pts[pts.length - 1]) out.push(pts[pts.length - 1]);
+  return out;
+}
+/* x-axis date labels chosen by the span on screen and how many labels fit — never by preset name */
+const dayLabeler = spanD => (t, nx) => { const d = new Date(t);
+  return spanD >= 365.25 * (nx - 1) ? String(d.getUTCFullYear())
+       : spanD > 31 * (nx - 1)      ? MON[d.getUTCMonth()] + " ’" + String(d.getUTCFullYear()).slice(2)
+       : d.getUTCDate() + " " + MON[d.getUTCMonth()]; };
 
 /* ── state ── */
-const S = { m1: null, m1acts: null, m1state: null, m1live: false, mb: null, rp: null, btc: null, btcRT: null, px: null };   // loaded data
-let range = "ALL", mode = "BOTH", tradeSrc = "MB", disp = "$", realMode = "$";
+const S = { m1: null, m1acts: null, m1state: null, m1live: false, mb: null, rp: null, btc: null, btcRT: null, px: null,
+            btcReal: false, pxLive: false, mbStale: false };   // loaded data
+const BTC_REAL_FROM = "2017-08-17";   // first real candle in btc_price_hist.json; earlier rows are filler
+let mode = "BOTH", tradeSrc = "MB", realMode = "$";
 
 /* ── boot: fetch everything, live-first with static fallback, degrade per-section.
    loadAll() is re-runnable: the refresh button and pull-to-refresh call it again. ── */
@@ -264,30 +457,55 @@ function loadAll(){
     S.m1acts = al.status === "fulfilled" ? al.value : (ah.status === "fulfilled" ? ah.value : null);
     S.m1state = sl.status === "fulfilled" ? sl.value : null;
     if (p.status === "fulfilled") S.mb = p.value;
+    S.mbStale = p.status !== "fulfilled";       // kept from an earlier load: shown, but never called LIVE
     S.px = px.status === "fulfilled" ? +px.value.price : (S.mb && +S.mb.price > 0 ? +S.mb.price : null);
+    S.pxLive = px.status === "fulfilled";       // false = S.px is only the last daily close, never called "live"
     renderPrice(px.status === "fulfilled" ? +px.value.price : null);
     S.rp = rp.status === "fulfilled" ? rp.value : null;
     const pmap = new Map();
     if (bh.status === "fulfilled") for (const q of bh.value) pmap.set(q[0], +q[1]);
+    /* btc_price_hist.json is straight-line FILLER before Binance's first candle (17 Aug 2017):
+       it says $1,083 on 14 Jan 2015 when BTC closed at $172. The real 2014-2017 daily closes
+       come from the Max B feed, which carries them; without that feed the filler stays and
+       the chart says so (S.btcReal). */
+    S.btcReal = false;
+    if (S.mb && Array.isArray(S.mb.dates) && Array.isArray(S.mb.close) && S.mb.close.length === S.mb.dates.length){
+      for (const d of [...pmap.keys()]) if (d < BTC_REAL_FROM) pmap.delete(d);
+      S.mb.dates.forEach((d, i) => { const c = +S.mb.close[i];
+        if (c > 0 && (d < BTC_REAL_FROM || !pmap.has(d))) pmap.set(d, c); });
+      S.btcReal = true;
+    }
     if (bk.status === "fulfilled") for (const k of bk.value) pmap.set(new Date(k[0]).toISOString().slice(0, 10), +k[4]);
     S.btc = pmap.size > 10 ? [...pmap.entries()].map(([d, v]) => ({ t: ms(d), d, v })).sort((a, b) => a.t - b.t) : null;
     S.btcRT = bi.status === "fulfilled"
       ? bi.value.map(k => ({ t: Math.min(k[6], Date.now()), v: +k[4], o: +k[1] }))
           .filter(q => isFinite(q.t) && q.v > 0) : null;
-    /* LIVE MARK: extend the M1 model curve to today at the live price, using the published
-       position geometry (direction x margin x leverage). Flat -> the value simply carries. */
-    if (S.m1 && S.m1state && S.px > 0 && +S.m1state.price > 0){
+    /* LIVE MARK: carry the M1 model curve to today at the live price, on the curve's OWN rule.
+       The published curve marks a size FIXED AT ENTRY: n = n_entry * (1 + k*(P/E - 1)), with
+       k = direction x margin x leverage and E the entry price (verified 2026-11-21: reproduces
+       every daily value of the open trade to the cent). The old "current equity x today's
+       move" overstated the day 1.7x on a short far in profit. E must agree between the trade
+       markers and state.BY (BY alone is not trusted across flips); otherwise the flat rule is
+       used. Never applied to the static fallback file: its last value is months old, and one
+       day's move on top of it would be a made-up figure. Flat -> the value simply carries. */
+    if (S.m1 && S.m1live && S.m1state && S.pxLive && S.px > 0 && +S.m1state.price > 0){
       const st0 = S.m1state, sgn = st0.signal === "LONG" ? 1 : st0.signal === "SHORT" ? -1 : 0;
       /* entry-frozen fraction: the daily curve books this trade at the ENTRY bucket */
       const fr = +st0.entry_margin_pct || +st0.margin_pct || 0.5, lv = +st0.leverage || 0;
       const last = S.m1[S.m1.length - 1];
       const dNow = new Date().toISOString().slice(0, 10);
-      if (dNow > last.d)
-        S.m1.push({ t: ms(dNow), d: dNow,
-                    v: last.v * (1 + (sgn ? sgn * fr * lv * (S.px / +st0.price - 1) : 0)) });
+      if (dNow > last.d){
+        const k = sgn * fr * lv, P0 = +st0.price, om = m1OpenEntry();
+        const E = st0.state && +st0.state.BY > 0 ? +st0.state.BY : 0;
+        const den = E > 0 ? 1 + k * (P0 / E - 1) : 0;
+        const byEntry = sgn !== 0 && E > 0 && om && Math.abs(+om.price - E) / E < 0.005 &&
+                        st0.last_date === last.d && den > 0.05;
+        const g = !sgn ? 1 : byEntry ? (1 + k * (S.px / E - 1)) / den : 1 + k * (S.px / P0 - 1);
+        S.m1.push({ t: ms(dNow), d: dNow, v: last.v * Math.max(g, 0) });
+      }
     }
     /* one section's failure must never blank the rest (audit 2026-09-21) */
-    for (const fn of [renderSignals, renderM1Position, renderPosition, chips, draw, realChips, drawReal,
+    for (const fn of [renderSignals, renderM1Position, renderPosition, draw, drawReal,
                       renderH2H, renderScen, renderScenM1, tradeChips, renderTrades, renderRealTrades, initTabs]){
       try { fn(); } catch (e) { console.error(fn.name, e); }
     }
@@ -306,8 +524,10 @@ document.addEventListener("touchmove", e => {
 }, { passive: true });
 document.addEventListener("touchend", () => { ptrY = null; }, { passive: true });
 /* gentle auto-refresh: every 5 minutes while the page is visible, plus on returning to it */
-setInterval(() => { if (!document.hidden) loadAll(); }, 300e3);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) loadAll(); });
+/* a finger is on a chart: do not redraw under it (self-expiring, so it can never stick) */
+const chartBusy = () => [CH1, CH2].some(c => c.touch && Date.now() - c.touch < 30e3);
+setInterval(() => { if (!document.hidden && !chartBusy()) loadAll(); }, 300e3);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && !chartBusy()) loadAll(); });
 
 function renderPrice(p){
   const el = document.getElementById("livepx"), sub = document.getElementById("pxsub");
@@ -343,7 +563,7 @@ function renderSignals(){
     chip.textContent = dir; m1.appendChild(chip);
     const d1 = document.createElement("div"); d1.className = "d1";
     const eng = S.m1state && S.m1state.state && S.m1state.state.BK ? S.m1state.state.BK + " · 5×L 2×S" : "X/Y · 5×L 2×S";
-    const bits = [["As of", endD], ["Account", fmt$(endV)], ["Engine", eng]];
+    const bits = [["As of", endD], ["Backtest from $500", fmt$(endV)], ["Engine", eng]];
     for (const [k, v] of bits){ const r = document.createElement("div");
       const b = document.createElement("b"); b.textContent = v;
       r.appendChild(document.createTextNode(k + " ")); r.appendChild(b); d1.appendChild(r); }
@@ -353,8 +573,8 @@ function renderSignals(){
   const mb = document.getElementById("mbsig");
   mb.textContent = "";
   if (S.mb && S.mb.live){
-    document.getElementById("mbtag").textContent = "LIVE";
-    document.getElementById("mbtag").className = "tag live";
+    document.getElementById("mbtag").textContent = S.mbStale ? "STALE" : "LIVE";
+    document.getElementById("mbtag").className = S.mbStale ? "tag" : "tag live";
     const L = S.mb.live;
     const chip = document.createElement("span");
     chip.className = "chipdir " + (L.direction === "LONG" ? "LONG" : L.direction === "SHORT" ? "SHORT" : "FLAT");
@@ -374,8 +594,10 @@ function renderSignals(){
 
 /* ── Max B position card ── */
 function renderPosition(){
-  if (!(S.mb && S.mb.in_position && S.mb.model_growth)) return;
-  const g = S.mb.model_growth, card = document.getElementById("mbposcard"), box = document.getElementById("mbpos");
+  const card = document.getElementById("mbposcard"), box = document.getElementById("mbpos");
+  /* hide it again once Max B is flat: an old ENTER instruction must not outlive its position */
+  if (!(S.mb && S.mb.in_position && S.mb.model_growth)){ card.style.display = "none"; return; }
+  const g = S.mb.model_growth;
   card.style.display = "";
   box.textContent = "";
   const rows = [
@@ -530,27 +752,614 @@ function renderM1Position(){
   box.appendChild(c);
 }
 
-/* ── real account vs Max B simulation — from 20 Sep 2026 ── */
+/* ══ charts ══ shared drawing, pointing, readouts and period controls ══════════════════
+   One rule on both charts: every line starts equal at the left edge of the chosen period.
+   One date convention on both charts: a period runs from 00:00 UTC on its first date (the
+   previous day's close) to the end of its last date.
+   One readout pattern: the legend rows above the chart show the pointed date's figures
+   (or the latest ones at rest) — nothing floats, so nothing can land off-screen. */
+const NS = "http://www.w3.org/2000/svg";
+const MONO = "ui-monospace,Consolas,monospace";
+const $id = id => document.getElementById(id);
 function parseRpTs(t){ return Date.parse(String(t).replace(" UTC", "Z").replace(" ", "T")); }
-function realChips(){
-  const row = document.getElementById("realDisp"); row.textContent = "";
+const pctS = (r, dp) => { const a = Math.abs(r * 100).toFixed(dp);                       // signed, true minus;
+  return (+a === 0 ? "" : r < 0 ? "−" : "+") + a + "%"; };                               // a rounded zero carries no sign
+const retCls = (r, dp) => +Math.abs(r * 100).toFixed(dp) === 0 ? "" : r > 0 ? "pos" : "neg";
+
+/* value at t carrying the last REAL point forward — never invents values between points.
+   null before the first point, or more than `stale` ms after the series' LAST point */
+function stepAt(pts, t, stale){
+  const n = pts.length;
+  if (!n || t < pts[0].t) return null;
+  if (stale != null && t > pts[n - 1].t + stale) return null;
+  let lo = 0, hi = n - 1;
+  while (lo < hi){ const m = (lo + hi + 1) >> 1; if (pts[m].t <= t) lo = m; else hi = m - 1; }
+  return pts[lo].v;
+}
+/* straight-line value at t (intraday account snapshots); both ends carry flat */
+function linAt(pts, t){
+  if (t <= pts[0].t) return pts[0].v;
+  for (let i = 1; i < pts.length; i++) if (pts[i].t >= t){
+    const a = pts[i - 1], b = pts[i], f = (t - a.t) / (b.t - a.t || 1);
+    return a.v + f * (b.v - a.v);
+  }
+  return pts[pts.length - 1].v;
+}
+function nearestIdx(T, t){
+  let lo = 0, hi = T.length - 1;
+  while (hi - lo > 1){ const m = (lo + hi) >> 1; if (T[m] <= t) lo = m; else hi = m; }
+  return Math.abs(T[hi] - t) < Math.abs(T[lo] - t) ? hi : lo;
+}
+/* evenly spaced round values on a log axis: 1-2-5 if they fit, else 1-3, else whole
+   powers of ten (every k-th decade) — never an uneven pick like $200K / $5M / $100M */
+function logTicks(lo, hi, n){
+  const e0 = Math.floor(Math.log10(lo)), e1 = Math.ceil(Math.log10(hi));
+  const pick = mults => { const out = [];
+    for (let e = e0; e <= e1; e++) for (const m of mults){ const v = m * 10 ** e; if (v >= lo && v <= hi) out.push(v); }
+    return out; };
+  for (const mults of [[1, 2, 5], [1, 3]]){ const out = pick(mults); if (out.length <= n + 1) return out; }
+  const dec = pick([1]), st = Math.ceil(dec.length / (n + 1));
+  return dec.filter(v => Math.round(Math.log10(v)) % st === 0);
+}
+function linTicks(lo, hi, n){
+  const span = hi - lo || 1, mag = 10 ** Math.floor(Math.log10(span / n));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n + 1) || 10 * mag;
+  const ticks = [];
+  for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + step * 1e-9; v += step)
+    ticks.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+  return { ticks, step };
+}
+/* ticks for a log axis: round log steps across a wide range, plain "nice" steps inside a
+   narrow one (a 1-month window contains no round 1-2-5 value at all) */
+const axisTicks = (lo, hi, n) => hi / lo >= 10 ? { ticks: logTicks(lo, hi, n), step: null } : linTicks(lo, hi, n);
+
+function mkChart(id, ratio, presets){
+  return { svg: $id(id), ratio, presets, W: 0, H: 0, geo: null, cross: [], snapT: [],
+           pin: null, hov: null, touch: 0, paint: () => {}, redraw: () => {},
+           P: { preset: "ALL", from: null, to: null }, lo: 0, hi: 0, win: null,
+           roT: null, roB: null, roRows: null };
+}
+const CH1 = mkChart("chart", 0.62, PRESETS), CH2 = mkChart("chart2", 0.56, PRESETS_RT);
+
+/* the SVG is drawn in REAL pixels (viewBox = its on-screen width), so axis text stays a
+   readable 11px on a phone instead of shrinking with a fixed 640-wide drawing */
+function fitSvg(ch){
+  const w = Math.round(ch.svg.parentNode.clientWidth);
+  if (w > 0) ch.W = w; else if (!ch.W) ch.W = 640;        // hidden tab: keep the last known width
+  ch.H = Math.max(180, Math.min(330, Math.round(ch.W * ch.ratio)));
+  ch.svg.setAttribute("viewBox", "0 0 " + ch.W + " " + ch.H);
+}
+/* o: { x0, x1, yLo, yHi, log, lines:[{col,w,pts,step}], ticks:{ticks,step}, yLab, xLab, start:{v,label} } */
+function drawFrame(ch, o){
+  const sv = ch.svg, W = ch.W, H = ch.H, M = { l: 48, r: 12, t: 18, b: 22 };
+  sv.textContent = ""; ch.cross = [];
+  const mk = (n, a, txt) => { const e = document.createElementNS(NS, n);
+    for (const k in a) e.setAttribute(k, a[k]);
+    if (txt != null) e.textContent = txt;
+    sv.appendChild(e); return e; };
+  const fy = o.log ? Math.log : (v => v);
+  const xOf = t => M.l + (t - o.x0) / (o.x1 - o.x0 || 1) * (W - M.l - M.r);
+  const yOf = v => M.t + (1 - (fy(v) - fy(o.yLo)) / (fy(o.yHi) - fy(o.yLo) || 1)) * (H - M.t - M.b);
+  mk("rect", { x: 0, y: 0, width: W, height: H, fill: "transparent" });     // the whole chart is the touch target
+  const AX = { fill: COL.mut, "font-size": 11, "pointer-events": "none" };
+  for (const v of o.ticks.ticks){
+    mk("line", { x1: M.l, x2: W - M.r, y1: yOf(v), y2: yOf(v), stroke: COL.line, "stroke-width": 1, "pointer-events": "none" });
+    mk("text", { ...AX, x: M.l - 6, y: yOf(v) + 4, "text-anchor": "end", "font-family": MONO }, o.yLab(v, o.ticks.step));
+  }
+  const nx = W < 420 ? 4 : 6; let prev = null;
+  if (o.xTicks) for (const q of o.xTicks){
+    const x = xOf(q.t);
+    mk("text", { ...AX, x, y: H - 6, "text-anchor": x < M.l + 16 ? "start" : x > W - M.r - 16 ? "end" : "middle" }, q.lab);
+  }
+  else for (let i = 0; i < nx; i++){
+    const t = o.x0 + (o.x1 - o.x0) * i / (nx - 1), lab = o.xLab(t, nx, i);
+    if (lab === prev) continue;
+    prev = lab;
+    mk("text", { ...AX, x: xOf(t), y: H - 6, "text-anchor": i === 0 ? "start" : i === nx - 1 ? "end" : "middle" }, lab);
+  }
+  const ys = o.start ? yOf(o.start.v) : 0;
+  if (o.start) mk("line", { x1: M.l, x2: W - M.r, y1: ys, y2: ys, stroke: COL.mut, "stroke-width": 1,
+                            "stroke-dasharray": "3 4", opacity: .8, "pointer-events": "none" });
+  for (const l of o.lines){
+    if (l.pts.length > 1){
+      let d = "";
+      l.pts.forEach((p, i) => { const x = xOf(p.t).toFixed(1), y = yOf(p.v).toFixed(1);
+        d += i === 0 ? "M" + x + " " + y : l.step ? "H" + x + "V" + y : "L" + x + " " + y; });
+      mk("path", { d, fill: "none", stroke: l.col, "stroke-width": l.w || 2, "stroke-linejoin": "round",
+                   "stroke-linecap": "round", "pointer-events": "none" });
+    }
+    const lp = l.pts[l.pts.length - 1];
+    mk("circle", { cx: xOf(lp.t), cy: yOf(lp.v), r: 4, fill: l.col, stroke: COL.card, "stroke-width": 2, "pointer-events": "none" });
+  }
+  if (o.start){      // the shared starting point, marked and labelled: all lines begin here
+    mk("circle", { cx: xOf(o.x0), cy: ys, r: 3.5, fill: COL.ink, stroke: COL.card, "stroke-width": 1.5, "pointer-events": "none" });
+    mk("text", { x: M.l + 8, y: ys - 6 < M.t + 10 ? ys + 15 : ys - 6, fill: COL.ink, "font-size": 10.5,
+                 stroke: COL.card, "stroke-width": 3, "paint-order": "stroke", "pointer-events": "none" }, o.start.label);
+  }
+  ch.geo = { W, H, M, xOf, yOf, x0: o.x0, x1: o.x1 };
+}
+/* crosshair for the pointed date: hairline, a dot on each line, a small date flag on top */
+function paintCross(ch, t, vals, flag){
+  for (const e of ch.cross) e.remove();
+  ch.cross = [];
+  const g = ch.geo;
+  if (t == null || !g) return;
+  const X = g.xOf(t);
+  const add = (n, a, txt) => { const e = document.createElementNS(NS, n);
+    for (const k in a) e.setAttribute(k, a[k]);
+    e.setAttribute("pointer-events", "none");
+    if (txt != null) e.textContent = txt;
+    ch.svg.appendChild(e); ch.cross.push(e); };
+  add("line", { x1: X, x2: X, y1: g.M.t, y2: g.H - g.M.b, stroke: COL.mut, "stroke-width": 1 });
+  for (const q of vals) if (q) add("circle", { cx: X, cy: g.yOf(q.v), r: 4.5, fill: q.col, stroke: COL.card, "stroke-width": 2 });
+  add("text", { x: X, y: g.M.t - 6, fill: COL.ink, "font-size": 10.5, "font-weight": 600,
+                "text-anchor": X < g.M.l + 60 ? "start" : X > g.W - g.M.r - 60 ? "end" : "middle" }, flag);
+}
+
+/* ── readout: header (what/when + step buttons while a date is pinned) and one row per line ── */
+function roRow(col, name, val, ret, cls){
+  const r = document.createElement("div"); r.className = "rr";
+  const k = document.createElement("span"); k.className = "lk"; k.style.borderTopColor = col;
+  const n = document.createElement("span"); n.className = "rn"; n.textContent = name;
+  const v = document.createElement("span"); v.className = "rv mono"; v.textContent = val;
+  const p = document.createElement("span"); p.className = "rp mono" + (cls ? " " + cls : ""); p.textContent = ret;
+  r.append(k, n, v, p); return r;
+}
+function initReadout(ch, n){
+  const ro = $id("ro" + n); ro.textContent = "";
+  const h = document.createElement("div"); h.className = "roh";
+  const t = document.createElement("span"); t.className = "rot";
+  const bt = document.createElement("span"); bt.className = "robtns"; bt.hidden = true;
+  const btn = (lab, aria, fn, cls) => { const b = document.createElement("button");
+    b.type = "button"; b.className = "rb" + (cls ? " " + cls : ""); b.textContent = lab;
+    b.setAttribute("aria-label", aria); b.onclick = fn; bt.appendChild(b); };
+  btn("‹", "Previous point", () => stepPin(ch, -1));
+  btn("›", "Next point", () => stepPin(ch, 1));
+  /* "Latest" hides itself: hand the focus to the chart so a keyboard user keeps their place */
+  btn("Latest", "Back to the latest values", () => { ch.pin = null; ch.hov = null; ch.paint(); ch.svg.focus({ preventScroll: true }); }, "lat");
+  h.append(t, bt);
+  const rows = document.createElement("div");
+  ro.append(h, rows);
+  ch.roT = t; ch.roB = bt; ch.roRows = rows;
+}
+function roHead(ch, plain, bold, tail){
+  ch.roT.textContent = "";
+  if (plain) ch.roT.appendChild(document.createTextNode(plain));
+  if (bold){ const b = document.createElement("b"); b.textContent = bold; ch.roT.appendChild(b); }
+  if (tail) ch.roT.appendChild(document.createTextNode(tail));
+  ch.roB.hidden = ch.pin == null;
+}
+/* A redraw rebuilds the snap points (today's live point moves with the clock). A pin that sat
+   on the LATEST point must follow the latest; any other pin re-snaps to a real point — it must
+   never be left between points, where it would read yesterday's close under today's date. */
+const pinOnLast = ch => ch.pin != null && ch.snapT.length > 0 && ch.pin === ch.snapT[ch.snapT.length - 1];
+function resnap(ch, wasLast, x0, x1){
+  const T = ch.snapT;
+  if (ch.pin == null) return;
+  if (!T.length) ch.pin = null;
+  else if (wasLast) ch.pin = T[T.length - 1];
+  else if (ch.pin < x0 || ch.pin > x1) ch.pin = null;
+  else ch.pin = T[nearestIdx(T, ch.pin)];
+}
+function stepPin(ch, dir){
+  const T = ch.snapT;
+  if (!T.length) return;
+  const i = dir === -Infinity ? 0 : dir === Infinity ? T.length - 1
+          : nearestIdx(T, ch.pin != null ? ch.pin : T[T.length - 1]) + dir;
+  ch.pin = T[Math.max(0, Math.min(T.length - 1, i))]; ch.hov = null; ch.paint();
+}
+
+/* ── pointing ── mouse: hover reads, click pins/unpins. touch: a tap pins the date, a sideways
+   drag scrubs, an up/down drag stays a normal page scroll (CSS touch-action: pan-y) and
+   changes nothing; lifting the finger keeps the reading so it can be read without a thumb on it.
+   keyboard: focus the chart, then Left/Right step, Home/End jump, Escape returns to latest. */
+let hintOff = false, lastScroll = 0;
+try { hintOff = localStorage.getItem("chartHint") === "1"; } catch (e) {}
+const COARSE = !!(window.matchMedia && matchMedia("(pointer: coarse)").matches);
+function syncHint(){ for (const id of ["hint1", "hint2"]) $id(id).hidden = hintOff || !COARSE; }
+function hintDone(){          // the hint itself is removed on the next redraw, never mid-gesture (no layout jump)
+  if (hintOff) return;
+  hintOff = true;
+  try { localStorage.setItem("chartHint", "1"); } catch (e) {}
+}
+window.addEventListener("scroll", () => { lastScroll = Date.now(); }, { passive: true });
+function bindPointer(ch){
+  const sv = ch.svg; let g0 = null;
+  sv.setAttribute("tabindex", "0");
+  const tAt = ev => {
+    const g = ch.geo, r = sv.getBoundingClientRect();
+    if (!g || !r.width || !ch.snapT.length) return null;
+    /* touches in the axis margins clamp to the first / last date instead of being ignored */
+    const px = Math.max(g.M.l, Math.min((ev.clientX - r.left) / r.width * g.W, g.W - g.M.r));
+    return ch.snapT[nearestIdx(ch.snapT, g.x0 + (px - g.M.l) / (g.W - g.M.l - g.M.r) * (g.x1 - g.x0))];
+  };
+  const point = (t, pin) => {
+    if (t == null) return;
+    if (pin){ ch.pin = t; ch.hov = null; hintDone(); }
+    else { if (ch.hov === t) return; ch.hov = t; }
+    ch.paint();
+  };
+  sv.onpointerdown = ev => {
+    if (ev.pointerType === "mouse"){
+      if (ev.button !== 0) return;
+      if (ch.pin != null){ ch.pin = null; point(tAt(ev), false); } else point(tAt(ev), true);
+      return;
+    }
+    if (g0 && Date.now() - g0.t0 < 30e3) return;      // a second finger never hijacks the reading
+    /* a touch that merely stops a fling-scroll is not a tap on the chart */
+    g0 = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, t0: Date.now(), scrub: false, flung: Date.now() - lastScroll < 250 };
+    ch.touch = Date.now();
+    /* capture on the svg itself: a redraw replaces its children, and the finger's events
+       must not die with the removed child that was first touched */
+    try { sv.setPointerCapture(ev.pointerId); } catch (e) {}
+  };
+  sv.onpointermove = ev => {
+    if (ev.pointerType === "mouse"){ if (ch.pin == null) point(tAt(ev), false); return; }
+    if (!g0 || ev.pointerId !== g0.id) return;
+    const dx = ev.clientX - g0.x, dy = ev.clientY - g0.y;
+    if (!g0.scrub && Math.abs(dx) >= 8 && Math.abs(dx) > Math.abs(dy)) g0.scrub = true;
+    if (g0.scrub){ ch.touch = Date.now(); point(tAt(ev), true); }
+  };
+  sv.onpointerup = ev => {
+    if (ev.pointerType === "mouse" || !g0 || ev.pointerId !== g0.id) return;
+    if (g0.scrub || (!g0.flung && Math.hypot(ev.clientX - g0.x, ev.clientY - g0.y) < 10)) point(tAt(ev), true);
+    g0 = null; ch.touch = 0;
+  };
+  sv.onpointercancel = ev => { if (g0 && ev.pointerId === g0.id){ g0 = null; ch.touch = 0; } };   // became a page scroll
+  sv.onpointerleave = ev => {
+    if (ev.pointerType === "mouse" && ch.pin == null && ch.hov != null){ ch.hov = null; ch.paint(); }
+  };
+  sv.onkeydown = ev => {
+    const k = ev.key;
+    if (k === "ArrowLeft") stepPin(ch, -1); else if (k === "ArrowRight") stepPin(ch, 1);
+    else if (k === "Home") stepPin(ch, -Infinity); else if (k === "End") stepPin(ch, Infinity);
+    else if (k === "Escape" && ch.pin != null){ ch.pin = null; ch.paint(); }
+    else return;
+    ev.preventDefault();
+  };
+}
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  for (const ch of [CH1, CH2]) if (ch.pin != null){ ch.pin = null; ch.paint(); }
+});
+
+/* ── period controls: built ONCE (static DOM survives the 5-minute refresh, so an open date
+   picker or a half-typed amount is never torn down); each draw only syncs their state ── */
+function initPeriod(ch, n){
+  const grid = $id("pg" + n), panel = $id("dp" + n), fromEl = $id("df" + n), toEl = $id("dt" + n);
+  for (const [id] of ch.presets){
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "pb"; b.dataset.p = id; b.textContent = PLAB[id];
+    b.onclick = () => { ch.P = { preset: id, from: null, to: null }; panel.hidden = true; ch.pin = null; ch.redraw(); };
+    grid.appendChild(b);
+  }
+  const db = document.createElement("button");
+  db.type = "button"; db.className = "pb"; db.dataset.p = "DATES"; db.textContent = "Dates";
+  db.onclick = () => {
+    if (ch.P.preset && ch.win){        // freeze what is on screen as the custom range, then let it be edited
+      /* an end that IS the latest data stays "follow the latest" (to: null) — opening the
+         panel must not turn a rolling period into one that stops at today's date */
+      ch.P = { preset: null, from: iso(ch.win.a), to: ch.win.b >= ch.hi - 60e3 ? null : iso(ch.win.b - 1) };
+      panel.hidden = false;
+    } else panel.hidden = !panel.hidden;
+    ch.redraw();
+  };
+  grid.appendChild(db);
+  /* A date field fires `change` on every keystroke (desktop) and every wheel stop (iOS), and
+     half-typed values can be complete, valid dates ("05/1_" is 5 January). So:
+       - while the field is still in use, a change applies only after a 0.7 s pause AND only
+         if it is in range and does not cross the other date;
+       - on LEAVING the field the entry is final: an out-of-range date is clamped to the
+         nearest available one, and if it crosses the other date THE FIELD JUST EDITED WINS —
+         the other one moves out of its way (From past To: To follows the latest data; To
+         before From: From becomes that day). Nothing is ever swapped. Both fields are then
+         re-synced to the period actually on screen. k: 0 = From edited, 1 = To edited. */
+  const RE = /^\d{4}-\d{2}-\d{2}$/;
+  const commit = (k, final) => {
+    if (ch.P.preset || !ch.win) return;
+    const lo = iso(ch.lo), hi = iso(ch.hi - 1), cur = [iso(ch.win.a), iso(ch.win.b - 1)];
+    let v = (k === 0 ? fromEl : toEl).value;
+    if (!RE.test(v)) return;                                   // cleared / incomplete: leaving restores the field
+    if (v < lo || v > hi){ if (!final) return; v = v < lo ? lo : hi; }
+    let f = k === 0 ? v : cur[0], t = k === 1 ? v : cur[1];
+    if (f > t){ if (!final) return; if (k === 0) t = hi; else f = t; }
+    const P = { preset: null, from: f, to: t === hi ? null : t };
+    if (ch.P.from === P.from && ch.P.to === P.to) return;
+    ch.P = P; ch.pin = null; ch.redraw();
+  };
+  let dT = null;
+  const onCh = k => () => { clearTimeout(dT); dT = setTimeout(() => commit(k, false), 700); };
+  const onBl = k => () => { clearTimeout(dT); commit(k, true); if (ch.win) syncPeriod(ch, n, true); };
+  fromEl.onchange = onCh(0); toEl.onchange = onCh(1);
+  fromEl.onblur = onBl(0); toEl.onblur = onBl(1);
+}
+function syncPeriod(ch, n, force){
+  const grid = $id("pg" + n), panel = $id("dp" + n), w = ch.win;
+  for (const b of grid.children){
+    const id = b.dataset.p;
+    if (id === "DATES"){
+      b.classList.toggle("on", !ch.P.preset);
+      b.setAttribute("aria-expanded", String(!panel.hidden));
+      continue;
+    }
+    const nM = ch.presets.find(q => q[0] === id)[1], on = ch.P.preset === id;
+    b.hidden = nM !== 0 && presetStart(nM, ch.hi) <= ch.lo + DAY / 2;     // offer only presets shorter than the history
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", String(on));
+  }
+  /* "today" only when the period really ends on the current UTC date (a stale feed must not claim it) */
+  const endD = w.b - 1, live = w.b >= ch.hi - 60e3 && iso(endD) === iso(Date.now()), pr = $id("pr" + n);
+  pr.textContent = "";
+  const b1 = document.createElement("b");
+  b1.textContent = fmtDay(w.a) + " → " + (live ? "today" : fmtDay(endD));
+  pr.append(b1, document.createTextNode(" · " + fmtSpan(w.a, w.b)));
+  const lim = [iso(ch.lo), iso(ch.hi - 1)], val = [iso(w.a), iso(endD)];
+  [$id("df" + n), $id("dt" + n)].forEach((i, k) => {
+    /* written only when different: re-assigning min/max on a focused field resets its
+       half-typed digits in Chromium */
+    if (i.min !== lim[0]) i.min = lim[0];
+    if (i.max !== lim[1]) i.max = lim[1];
+    if ((force || document.activeElement !== i) && i.value !== val[k]) i.value = val[k];
+  });
+}
+
+/* ── Max B helpers ── */
+function mbLiveExposure(){
+  /* Max B's CURRENT signed exposure (x equity) from its live position card data */
+  const g = S.mb && S.mb.in_position ? (S.mb.model_growth || {}) : null;
+  if (!g || g.exposure_mult == null) return 0;
+  return (+g.exposure_mult) * (g.direction === "SHORT" ? -1 : 1);
+}
+function mbCloseOf(dstr){
+  if (!S.btc) return null;
+  for (let i = S.btc.length - 1; i >= 0; i--) if (S.btc[i].d === dstr) return S.btc[i].v;
+  return null;
+}
+function mbSeries(){      // full daily resolution — a period is sliced first and thinned only for drawing
+  if (!(S.mb && S.mb.dates && S.mb.scenarios)) return null;
+  const sc = S.mb.scenarios["Max B @50bp"];
+  if (!sc || !sc.eq) return null;
+  const n = S.mb.dates.length, out = [];
+  for (let i = 0; i < n; i++) if (sc.eq[i] > 0) out.push({ t: ms(S.mb.dates[i]), d: S.mb.dates[i], v: sc.eq[i] });
+  if (!out.length) return null;
+  /* LIVE MARK: carry the curve to today at the live price and current exposure */
+  const lastD = S.mb.dates[n - 1], closeD = mbCloseOf(lastD);
+  const dNow = new Date().toISOString().slice(0, 10);
+  if (S.pxLive && S.px > 0 && closeD > 0 && dNow > lastD)
+    out.push({ t: ms(dNow), d: dNow,
+               v: out[out.length - 1].v * (1 + mbLiveExposure() * (S.px / closeD - 1)) });
+  return out;
+}
+
+/* ── chart 1: a start amount in each model over the chosen period (backtest) ── */
+const MODES = [["BOTH", "Both"], ["M1", "M1 vs M5"], ["MB", "Max B"]];
+const NAMES = { M1: "M1 vs M5", MB: "Max B", BTC: "BTC hold" };
+/* M1's line booked each whole trade on the day it CLOSED until the live engine began marking
+   open trades daily (mid-Sep 2026): 286 changes in 4,670 days. */
+const STAIR_END = Date.UTC(2026, 8, 17);
+const amtIn = $id("amtIn");
+function amount(){
+  const n = parseAmt(amtIn.value);
+  if (n == null) return { v: 500, own: false, bad: false };
+  if (!isFinite(n) || n < 1) return { v: 500, own: false, bad: true };        // unusable = blank, said plainly
+  return { v: Math.min(n, 1e9), own: true, bad: false, capped: n >= 1e9 };
+}
+function syncAmount(am){
+  const h = $id("amtHelp");
+  $id("amtClr").hidden = amtIn.value === "";
+  amtIn.setAttribute("aria-invalid", String(!!am.bad));
+  h.className = "help" + (am.bad ? " warn" : "");
+  h.textContent = am.bad ? "Enter an amount of $1 or more — showing the models' standard $500 meanwhile."
+    : am.own ? (am.capped ? "The most this box accepts is $1,000,000,000. " : "") +
+               "Your amount — remembered on this device. Clear it to return to the standard $500."
+    : "Blank = the models' standard $500. Type your own amount to see it in your dollars.";
+}
+function fullSeries(){
+  /* a daily CLOSE belongs at the END of its day (today's live-marked point at "now"), so
+     "from 21 Oct" means from 00:00 UTC on 21 Oct — the 20 Oct close — exactly as on chart 2 */
+  const now = Date.now(), eod = pts => pts.map(p => ({ t: Math.min(p.t + DAY, now), v: p.v }));
+  const out = [];
+  /* the static fallback file is a sparse change-point curve: draw it as the staircase it is */
+  if (S.m1 && S.m1.length > 1) out.push({ id: "M1", key: NAMES.M1, col: COL.m1, pts: eod(S.m1), step: !S.m1live });
+  const mb = mbSeries();
+  if (mb && mb.length > 1) out.push({ id: "MB", key: NAMES.MB, col: COL.mb, pts: eod(mb) });
+  if (S.btc && S.btc.length > 1) out.push({ id: "BTC", key: NAMES.BTC, col: COL.btc, pts: eod(S.btc) });
+  return out;
+}
+/* true when the moment t falls inside an M1 trade the curve had not marked yet (flat since
+   the entry): a period edge there moves a whole trade's P&L into or out of the period.
+   pts = the M1 line (closes stamped at end of day); a trade dated D acts at the close of D. */
+function m1Unmarked(pts, t){
+  if (!S.m1acts) return false;
+  let open = null;
+  for (const a of S.m1acts){
+    const at = ms(a.date) + DAY;
+    if (at > t) break;
+    if (a.action === "Buy" || a.action === "Short") open = at;
+    else if (a.action === "Sell" || a.action === "Cover") open = null;
+  }
+  if (open == null || t - open < 2 * DAY) return false;
+  const v0 = stepAt(pts, open), v1 = stepAt(pts, t);
+  return v0 != null && v0 === v1;
+}
+function initModes(){
+  const row = $id("modeRow");
+  for (const [id, lab] of MODES){
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.m = id; b.textContent = lab;
+    b.onclick = () => { mode = id; CH1.pin = null; draw(); };
+    row.appendChild(b);
+  }
+}
+function syncModes(){
+  for (const b of $id("modeRow").children){
+    const on = b.dataset.m === mode;
+    b.className = "chip" + (on ? " on" : ""); b.setAttribute("aria-pressed", String(on));
+  }
+}
+function draw(){
+  const ch = CH1, note = $id("chartNote"), more = $id("chartMore"), notes = $id("notes1"), risk = $id("risk1");
+  const wasLast = pinOnLast(ch);
+  fitSvg(ch); syncHint();
+  const am = amount(), k = am.v;
+  syncAmount(am); syncModes();
+  notes.textContent = ""; risk.textContent = "";
+  const N = [];                                           // state-aware amber notes: only when they apply
+  const flush = () => { for (const tx of N){ const d = document.createElement("div"); d.textContent = "⚠ " + tx; notes.appendChild(d); } };
+  const blank = msg => { ch.svg.textContent = ""; ch.geo = null; ch.snapT = []; ch.cross = []; ch.pin = null;
+    ch.roRows.textContent = ""; ch.roT.textContent = ""; ch.roB.hidden = true; ch.paint = () => {};
+    more.textContent = ""; note.textContent = msg; flush(); };
+  const want = mode === "BOTH" ? ["M1", "MB", "BTC"] : [mode, "BTC"];
+  const series = fullSeries().filter(s => want.includes(s.id));
+  for (const id of want) if (!series.some(s => s.id === id))
+    N.push(NAMES[id] + " is not shown: its data feed is unreachable right now.");
+  if (!series.length) return blank("⚠ no curve data reachable — nothing to plot.");
+  /* every line starts equal at the left edge, so ALL begins at the first close EVERY shown
+     line has (the 6 Feb 2014 close while M1 is shown) — never from three different start dates */
+  const tLo = Math.max(...series.map(s => s.pts[0].t)), tHi = Math.max(...series.map(s => s.pts[s.pts.length - 1].t));
+  if (!(tHi > tLo)) return blank("⚠ curve data incomplete — nothing to plot.");
+  const win = resolveWin(ch.P, tLo, tHi, PRESETS);
+  ch.lo = tLo; ch.hi = tHi; ch.win = win; syncPeriod(ch, 1);
+  if (win.bad) N.push("Those dates are outside the available data — showing the whole history instead.");
+
+  const lines = [];
+  for (const s of series){
+    const raw = clipWin(s.pts, win.a, win.b, stepAt);      // slice from FULL daily data; thin only to draw
+    if (raw.length < 2){ N.push(s.key + " has no data in this period, so it is not drawn."); continue; }
+    const f = k / raw[0].v;
+    let peak = 0, mdd = 0;
+    for (const p of raw){ if (p.v > peak) peak = p.v; const dd = 1 - p.v / peak; if (dd > mdd) mdd = dd; }
+    const full = raw.map(p => ({ t: p.t, v: p.v * f }));
+    lines.push({ id: s.id, key: s.key, col: s.col, step: s.step, src: s.pts, w: 2, full, pts: thin(full, 900), mdd, end: full[full.length - 1] });
+  }
+  if (!lines.length) return blank("No data in this period.");
+  const x0 = win.a, x1 = Math.max(...lines.map(l => l.end.t)), spanD = (x1 - x0) / DAY;
+  const dLab = t => fmtDay(t - 1);              // a point stamped at a day's END belongs to that day
+  const vs = lines.flatMap(l => l.pts.map(p => p.v));
+  /* at least ±10% around the start is always in view: a quiet month must not be stretched
+     to the same height as a 12-year run */
+  const L0 = Math.log(Math.min(...vs, k * 0.9)), L1 = Math.log(Math.max(...vs, k * 1.1));
+  const pd = Math.min(0.25, Math.max((L1 - L0) * 0.06, 0.004));
+  const yLo = Math.exp(L0 - pd), yHi = Math.exp(L1 + pd);
+  /* x ticks. Points are stamped at the END of their day, so a tick is labelled with the day
+     its close belongs to (t - 1 ms) — except the first, which is the From date itself. Over
+     long spans the labels are years, and those sit ON 1 January instead of on arbitrary dates. */
+  const nx = ch.W < 420 ? 4 : 6, dl = dayLabeler(spanD);
+  let xTicks = null;
+  if (spanD >= 365.25 * (nx - 1)){
+    const y0 = new Date(x0).getUTCFullYear() + 1, y1 = new Date(x1).getUTCFullYear(), st = Math.ceil((y1 - y0 + 1) / nx);
+    xTicks = [];
+    for (let y = y0; y <= y1; y++) if (y % st === 0) xTicks.push({ t: Date.UTC(y, 0, 1), lab: String(y) });
+    if (xTicks.length < 2) xTicks = null;
+  }
+  drawFrame(ch, { x0, x1, yLo, yHi, log: true, lines, ticks: axisTicks(yLo, yHi, ch.H < 240 ? 4 : 5),
+                  yLab: fmtAxUSD, xTicks, xLab: (t, n, i) => dl(i === 0 ? t : t - 1, n),
+                  start: { v: k, label: "start " + fmtAmt(k) } });
+  ch.snapT = lines.reduce((a, b) => a.full.length >= b.full.length ? a : b).full.map(p => p.t);
+  resnap(ch, wasLast, x0, x1);
+  ch.hov = null;
+
+  ch.paint = () => {
+    const at = ch.pin != null ? ch.pin : ch.hov, vals = [];
+    ch.roRows.textContent = "";
+    for (const l of lines){
+      const v = at == null ? l.end.v : stepAt(l.full, at, 3 * DAY);
+      vals.push(v == null ? null : { col: l.col, v });
+      ch.roRows.appendChild(v == null ? roRow(l.col, l.key, "—", "")
+        : roRow(l.col, l.key, fmtHyp(v), fmtRet(v / k), retCls(v / k - 1, 1)));
+    }
+    if (at == null) roHead(ch, "", fmtAmt(k), " would have become · " + dLab(x1) + " (backtest)");
+    else if (at <= x0) roHead(ch, "Period start · ", dLab(at) + " close", "");
+    else roHead(ch, "On ", dLab(at), "");
+    paintCross(ch, at, vals, at == null ? "" : at <= x0 ? "start" : dLab(at));
+  };
+  ch.paint();
+
+  /* risk beside every result: the worst dip, and a per-year rate only where it means something */
+  const stair = lines.some(l => l.id === "M1") && (x0 < STAIR_END || !S.m1live);
+  const hr = risk.insertRow(); hr.appendChild(document.createElement("th"));
+  for (const l of lines){
+    const th = document.createElement("th"), key = document.createElement("span");
+    key.className = "lk"; key.style.borderTopColor = l.col; key.style.marginRight = "6px"; key.style.verticalAlign = "middle";
+    th.append(key, document.createTextNode(l.key)); hr.appendChild(th);
+  }
+  const r1 = risk.insertRow(); r1.insertCell().textContent = "Worst dip";
+  for (const l of lines){
+    const c = r1.insertCell(); c.className = "mono";
+    c.textContent = "−" + (l.mdd * 100).toFixed(l.mdd < 0.0995 ? 1 : 0) + "%" + (stair && l.id === "M1" ? "†" : "");
+  }
+  if (spanD >= 729){        // 2 years or more: annualising a single month would print absurd figures
+    const r2 = risk.insertRow(); r2.insertCell().textContent = "Avg per year";
+    for (const l of lines){
+      const c = r2.insertCell(), g = Math.pow(l.end.v / k, 365.25 * DAY / (l.end.t - x0));
+      c.className = "mono " + (g >= 1 ? "pos" : "neg"); c.textContent = fmtRet(g);
+    }
+  }
+
+  if (lines.some(l => l.end.v / k >= 1000))
+    N.push("Sizes like this could never really be traded at these prices: treat the dollars as an illustration. " +
+           "The % figures are backtest results too — history, not an expectation.");
+  const m1l = lines.find(l => l.id === "M1");
+  if (m1l){
+    const s0 = m1Unmarked(m1l.src, x0), s1 = x1 < tHi - DAY && m1Unmarked(m1l.src, x1);
+    if (s0 || s1) N.push("M1 was in the middle of a trade at this period's " + (s0 && s1 ? "start and end" : s0 ? "start" : "end") +
+      ". Before mid-Sep 2026 its line only moved on the day a trade closed, so this period's M1 figure can be off by one whole trade.");
+    if (!S.m1live) N.push("M1 vs M5's live curve is unreachable — showing the static backtest file (trade-by-trade to " +
+      dLab(m1l.src[m1l.src.length - 1].t) + ") instead.");
+  }
+  for (const l of lines) if (l.end.t < x1 - 3 * DAY)
+    N.push(l.key + " data ends " + dLab(l.end.t) + " (its feed is unreachable) — its figures stop there.");
+  if (!S.btcReal && x0 < ms(BTC_REAL_FROM) + DAY && lines.some(l => l.id === "BTC"))
+    N.push("BTC hold is unreliable for any period that starts on or before 17 Aug 2017 right now (it can be several times off): " +
+           "the btc-power feed that carries the real 2014–2017 prices is unreachable.");
+  flush();
+
+  note.textContent = "Backtest, not a forecast — a Nov 2026 walk-forward review judged M1's backtest growth optimistic, " +
+    "so plan on far less. Each line is that model's simulated record applied to " + fmtAmt(k) + " from the " +
+    dLab(x0) + " close; all lines start equal at the left edge." +
+    (stair ? " †M1's dips look smaller than they were: before mid-Sep 2026 its line only moved on the day a trade " +
+             "closed, so falls inside open trades are not counted." : "");
+  const liveEdge = S.pxLive && win.b >= tHi - 60e3;
+  more.textContent = (m1l ? "M1 vs M5 = the BTC-Signal engine's curve (5× long / 2× short, real fees + funding; " +
+    (S.m1live ? "published daily" : "STATIC backtest file — live feed unreachable") + "). " : "") +
+    (lines.some(l => l.id === "MB") ? "Max B = its simulation with 50 bp slippage per side, from btc-power. " : "") +
+    "BTC hold = the same amount simply held in spot BTC — no leverage, no strategy. Log scale: equal heights are " +
+    "equal % moves. A period runs from 00:00 UTC on its first date (the previous day's close) to the end of its last " +
+    "date — the same on both charts. All = from the " + dLab(tLo) + " close, the first day every shown line exists. " +
+    (liveEdge ? "The right edge is marked to the live BTC price. "
+      : win.b >= tHi - 60e3 ? "No live price right now: the right edge is each line's last published value. " : "") +
+    "Worst dip (= max drawdown) is the biggest fall from a high to a later low inside the period, on daily values; " +
+    "Avg per year (= CAGR) is shown for periods of 2 years or more.";
+}
+
+/* ── chart 2: the real account vs the Max B simulation and BTC hold ── */
+function initRealMode(){
+  const row = $id("realDisp");
   for (const m of ["$", "%"]){
     const b = document.createElement("button");
-    b.className = "chip" + (realMode === m ? " on" : ""); b.textContent = m;
-    b.setAttribute("aria-pressed", realMode === m ? "true" : "false");
-    b.onclick = () => { realMode = m; realChips(); drawReal(); }; row.appendChild(b);
+    b.type = "button"; b.className = "chip"; b.dataset.m = m; b.textContent = m;
+    b.title = m === "$" ? "Axis in dollars" : "Axis in percent since the period start";
+    b.setAttribute("aria-label", m === "$" ? "Axis in dollars" : "Axis in percent");
+    b.onclick = () => { realMode = m; drawReal(); };
+    row.appendChild(b);
+  }
+}
+function syncRealMode(){
+  for (const b of $id("realDisp").children){
+    const on = b.dataset.m === realMode;
+    b.className = "chip" + (on ? " on" : ""); b.setAttribute("aria-pressed", String(on));
   }
 }
 function drawReal(){
-  const svg2 = document.getElementById("chart2"), note2 = document.getElementById("chart2Note");
-  const W2 = 640, H2 = 300, M2 = { l: 50, r: 14, t: 12, b: 26 };
-  svg2.textContent = "";
-  const el2 = (name, attrs) => { const e = document.createElementNS(NS, name);
-    for (const k in attrs) e.setAttribute(k, attrs[k]); svg2.appendChild(e); return e; };
-  const lg = document.getElementById("legend2"); lg.textContent = "";
+  const ch = CH2, note2 = $id("chart2Note"), more2 = $id("chart2More"), rec = $id("rec2"), notes2 = $id("notes2");
+  const wasLast = pinOnLast(ch);
+  fitSvg(ch); syncHint(); syncRealMode();
+  notes2.textContent = "";
+  const blank = msg => { ch.svg.textContent = ""; ch.geo = null; ch.snapT = []; ch.cross = []; ch.pin = null;
+    ch.roRows.textContent = ""; ch.roT.textContent = ""; ch.roB.hidden = true; ch.paint = () => {};
+    rec.hidden = true; more2.textContent = ""; note2.textContent = msg; };
 
   /* the ACTUAL account: hourly equity snapshots from the shared account tracker */
-  let real = null, anchor = null, anchorT = null;
+  let real = null, anchor = null, anchorT = null, liveMark = false;
   if (S.rp && Array.isArray(S.rp.equity_history)){
     const pts = S.rp.equity_history
       .map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
@@ -559,16 +1368,18 @@ function drawReal(){
     if (pts.length){ real = pts; anchor = pts[0].v; anchorT = pts[0].t; }
   }
   /* LIVE MARK: extend to now — exact while flat; open position marked from the snapshot
-     price to the live price at the open quantity */
-  if (real && S.px > 0){
+     price to the live price at the open quantity. ONLY with a live ticker: the fallback price
+     is yesterday's daily close, older than the snapshot itself, and "marking" the real account
+     with it would move it to a value it never had. */
+  if (real && S.px > 0 && S.pxLive){
     const lastR = real[real.length - 1];
     let liveEq = lastR.v;
     const op = S.rp.open;
     if (op && +op.qty > 0 && +S.rp.price > 0)
       liveEq = lastR.v + (S.px - +S.rp.price) * (+op.qty) * (op.side === "SHORT" ? -1 : 1);
-    if (Date.now() > lastR.t + 60e3) real = [...real, { t: Date.now(), v: liveEq }];
+    if (Date.now() > lastR.t + 60e3){ real = [...real, { t: Date.now(), v: liveEq }]; liveMark = true; }
   }
-  if (!real){ note2.textContent = "⚠ real-account feed unreachable (btc-power/real_pnl.json) — the chart resumes when it returns."; return; }
+  if (!real) return blank("⚠ real-account feed unreachable (btc-power/real_pnl.json) — the chart resumes when it returns.");
   /* pinned anchor: if the tracker ever prunes early history, never silently rebase the record */
   const PIN = { t: Date.UTC(2026, 8, 20, 0, 5), v: 306.87 };
   if (real[0].t > PIN.t + 2 * 3600e3){ real = [PIN, ...real]; anchor = PIN.v; anchorT = PIN.t; }
@@ -594,21 +1405,15 @@ function drawReal(){
              ...pts.filter(p => p.t > anchorT).map(p => ({ t: p.t, v: anchor * p.v / base }))];
     /* LIVE MARK: between Max B's daily closes, carry the sim at its current exposure
        from the last published close to the live price (estimate, labeled in the caption) */
-    if (sim && S.px > 0){
+    if (sim && S.px > 0 && S.pxLive){
       const lastD = S.mb.dates[S.mb.dates.length - 1], closeD = mbCloseOf(lastD);
       const lastS = sim[sim.length - 1];
       if (closeD > 0 && Date.now() > lastS.t + 60e3)
         sim = [...sim, { t: Date.now(), v: lastS.v * (1 + mbLiveExposure() * (S.px / closeD - 1)) }];
     }
   }
-
-  const view = [{ key: "M1 real account", col: COL.m1, pts: real }];
-  if (sim){
-    /* show Max B's CURRENT exposure so a near-flat sim line explains itself */
-    const mbExp = mbLiveExposure();
-    view.push({ key: "Max B sim" + (mbExp ? " · now " + Math.abs(mbExp).toFixed(2) + "× " +
-               (mbExp > 0 ? "long" : "short") : " · now flat"), col: COL.mb, pts: sim });
-  }
+  const view = [{ id: "REAL", key: "Real account", col: COL.m1, w: 2.5, pts: real }];
+  if (sim) view.push({ id: "SIM", key: "Max B sim", col: COL.mb, w: 1.5, pts: sim });
   /* BTC buy-and-hold: same start value put into spot BTC, no margin, no strategy */
   if (S.btcRT && S.btcRT.length > 1){
     const inWin = S.btcRT.filter(p => p.t >= REAL_START_TS);
@@ -616,341 +1421,153 @@ function drawReal(){
       /* base = the first candle's OPEN: identical across 1h/4h/1d intervals, so the line
          cannot jump when the fetch interval widens as the window grows (audit 2026-09-21) */
       const b0 = inWin[0].o > 0 ? inWin[0].o : inWin[0].v;
-      view.push({ key: "BTC hold", col: COL.btc, pts: inWin.map(p => ({ t: p.t, v: anchor * p.v / b0 })) });
+      view.push({ id: "BTC", key: "BTC hold", col: COL.btc, w: 1.5,
+                  pts: [{ t: anchorT, v: anchor }, ...inWin.filter(p => p.t > anchorT).map(p => ({ t: p.t, v: anchor * p.v / b0 }))] });
     }
   }
+
+  /* PERIOD. Whole-record figures are taken first; then a later start restarts the two
+     what-if lines from the account's ACTUAL value at that moment. The real line is never
+     rescaled — it is always the account's actual dollars. */
+  const whole = view.map(sr => ({ key: sr.key, r: sr.pts[sr.pts.length - 1].v / anchor }));
+  const lo2 = REAL_START_TS, hi2 = Math.max(...view.map(sr => sr.pts[sr.pts.length - 1].t));
+  const win = resolveWin(ch.P, lo2, hi2, PRESETS_RT);
+  ch.lo = lo2; ch.hi = hi2; ch.win = win; syncPeriod(ch, 2);
+  if (win.bad){ const d = document.createElement("div");
+    d.textContent = "⚠ Those dates are outside the record — showing all of it instead."; notes2.appendChild(d); }
+  const anchor0 = anchor, anchorT0 = anchorT;
+  const rebased = win.a > anchorT0 + 60e3, cut = rebased || win.b < hi2 - 60e3;
+  if (rebased){
+    anchor = linAt(real, win.a); anchorT = win.a;
+    for (const sr of view) if (sr.id !== "REAL"){
+      const b0 = linAt(sr.pts, win.a), f = b0 > 0 ? anchor / b0 : 1;
+      sr.pts = sr.pts.map(p => ({ t: p.t, v: p.v * f }));
+    }
+  }
+  if (cut) for (const sr of view) sr.pts = clipWin(sr.pts, win.a, win.b, linAt);
+  const shown = view.filter(sr => sr.pts.length > 0);
+  if (!shown.length) return blank("No data in this period.");
 
   const toD = v => realMode === "%" ? (v / anchor - 1) * 100 : v;   // display transform
   const fromD = v => realMode === "%" ? anchor * (1 + v / 100) : v;
-  const vw = view.map(sr => ({ ...sr, pts: sr.pts.map(p => ({ t: p.t, v: toD(p.v) })) }));
+  const lines = shown.map(sr => ({ ...sr, pts: sr.pts.map(p => ({ t: p.t, v: toD(p.v) })) }));
   const anchorD = toD(anchor);
+  const allV = lines.flatMap(l => l.pts.map(p => p.v));
+  /* at least ±5% around the start stays in view: a quiet week is not a roller-coaster */
+  const minR = realMode === "%" ? 5 : anchor * 0.05;
+  const vLo = Math.min(...allV, anchorD - minR), vHi = Math.max(...allV, anchorD + minR), pad = (vHi - vLo) * 0.08;
+  const yLo = vLo - pad, yHi = vHi + pad;
+  const x0 = win.a, x1 = Math.max(...lines.map(l => l.pts[l.pts.length - 1].t), x0 + 3600e3), spanD = (x1 - x0) / DAY;
+  const tk = linTicks(yLo, yHi, ch.H < 240 ? 4 : 5), dp = dpFor(tk.step);
+  const dM = t => { const d = new Date(t); return d.getUTCDate() + " " + MON[d.getUTCMonth()]; };
+  let lastDay = null;                  // short periods: hours on every label, the date only where the day changes
+  drawFrame(ch, { x0, x1, yLo, yHi, log: false, lines, ticks: tk,
+    yLab: v => realMode === "%" ? (v < 0 ? "−" : v > 0 ? "+" : "") + Math.abs(v).toFixed(dp) + "%" : "$" + v.toFixed(dp),
+    xLab: (t, nx, i) => {
+      if (spanD >= 2.5) return dM(t);
+      /* midnight ticks carry the date alone, the others the hour alone: short enough for a 320px phone */
+      const d = new Date(t), mid = d.getUTCHours() === 0 && d.getUTCMinutes() === 0, day = dM(t);
+      const hh = String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0");
+      const lab = mid ? day : i === 0 || day !== lastDay ? day + " " + hh : hh;
+      lastDay = day; return lab;
+    },
+    start: { v: anchorD, label: rebased ? "all start at $" + anchor.toFixed(2) + " · " + dM(anchorT)
+                                        : "start $" + anchor.toFixed(2) } });
+  ch.snapT = lines.reduce((a, b) => a.pts.length >= b.pts.length ? a : b).pts.map(p => p.t);
+  resnap(ch, wasLast, x0, x1);
+  ch.hov = null;
 
-  const allV = vw.flatMap(sr => sr.pts.map(p => p.v));
-  const lo = Math.min(...allV, anchorD), hi = Math.max(...allV, anchorD);
-  const pad = Math.max((hi - lo) * .12, realMode === "%" ? 0.08 : Math.max(2, anchor * 0.01));
-  const y0v = lo - pad, y1v = hi + pad;
-  const x0 = REAL_START_TS;
-  const x1 = Math.max(...vw.map(sr => sr.pts[sr.pts.length - 1].t), REAL_START_TS + DAY);
-  const xOf2 = t => M2.l + (t - x0) / (x1 - x0 || 1) * (W2 - M2.l - M2.r);
-  const yOf2 = v => M2.t + (1 - (v - y0v) / (y1v - y0v || 1)) * (H2 - M2.t - M2.b);
-
-  /* linear y ticks (~5) */
-  const span = y1v - y0v, rawStep = span / 4.5, mag = 10 ** Math.floor(Math.log10(rawStep));
-  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s2 => span / s2 <= 5.5) || 10 * mag;
-  const dp = step >= 1 ? (Number.isInteger(step) ? 0 : 1) : Math.ceil(-Math.log10(step));
-  const tickLab = v => realMode === "%" ? (v > 0 ? "+" : "") + v.toFixed(dp) + "%"
-                                        : "$" + v.toFixed(dp);
-  for (let v = Math.ceil(y0v / step) * step; v <= y1v + 1e-9; v += step){
-    el2("line", { x1: M2.l, x2: W2 - M2.r, y1: yOf2(v), y2: yOf2(v), stroke: COL.line, "stroke-width": 1 });
-    el2("text", { x: M2.l - 6, y: yOf2(v) + 3.5, "text-anchor": "end", fill: COL.mut, "font-size": 10,
-                  "font-family": "ui-monospace,Consolas,monospace" }).textContent = tickLab(v);
-  }
-  /* start-value reference */
-  el2("line", { x1: M2.l, x2: W2 - M2.r, y1: yOf2(anchorD), y2: yOf2(anchorD),
-                stroke: COL.mut, "stroke-width": 1, "stroke-dasharray": "3 4", opacity: .8 });
-  for (let i = 0; i <= 4; i++){
-    const t = x0 + (x1 - x0) * i / 4, dd = new Date(t);
-    el2("text", { x: xOf2(t), y: H2 - 8, "text-anchor": i === 0 ? "start" : i === 4 ? "end" : "middle",
-                  fill: COL.mut, "font-size": 10 }).textContent = MON[dd.getUTCMonth()] + " " + dd.getUTCDate();
-  }
-  const fmA = v => realMode === "%" ? (v >= 0 ? "+" : "") + v.toFixed(2) + "%" : "$" + v.toFixed(2);
-  const endLabs = [];
-  for (const sr of vw){
-    if (sr.pts.length > 1){
-      const dPath = sr.pts.map((p, i) => (i ? "L" : "M") + xOf2(p.t).toFixed(1) + " " + yOf2(p.v).toFixed(1)).join(" ");
-      el2("path", { d: dPath, fill: "none", stroke: sr.col, "stroke-width": 2,
-                    "stroke-linejoin": "round", "stroke-linecap": "round" });
+  const toNow = win.b >= hi2 - 60e3;
+  ch.paint = () => {
+    const at = ch.pin != null ? ch.pin : ch.hov, vals = [];
+    ch.roRows.textContent = "";
+    for (const l of lines){
+      const last = l.pts[l.pts.length - 1];
+      const v = at == null ? last.v : (at > last.t + 3 * 3600e3 ? null : linAt(l.pts, at));
+      vals.push(v == null ? null : { col: l.col, v });
+      if (v == null){ ch.roRows.appendChild(roRow(l.col, l.key, "—", "")); continue; }
+      const usd = fromD(v), r = usd / anchor - 1;
+      ch.roRows.appendChild(roRow(l.col, l.key, "$" + usd.toFixed(2), pctS(r, 2), retCls(r, 2)));
     }
-    const lp = sr.pts[sr.pts.length - 1];
-    el2("circle", { cx: xOf2(lp.t), cy: yOf2(lp.v), r: 4.5, fill: sr.col, stroke: COL.card, "stroke-width": 2 });
-    endLabs.push({ x: xOf2(lp.t), y: yOf2(lp.v), txt: fmA(lp.v) });
-  }
-  endLabs.sort((a, b) => a.y - b.y);
-  for (let i = 1; i < endLabs.length; i++)
-    if (endLabs[i].y - endLabs[i - 1].y < 14) endLabs[i].y = endLabs[i - 1].y + 14;
-  for (const L of endLabs)
-    el2("text", { x: Math.max(L.x - 8, M2.l + 60), y: Math.max(L.y - 9, M2.t + 10), "text-anchor": "end",
-                  fill: COL.ink, "font-size": 11, "font-weight": 700,
-                  "font-family": "ui-monospace,Consolas,monospace" }).textContent = L.txt;
+    /* at rest: "Now" only with a live mark; otherwise the tracker's last snapshot, by name.
+       A past period ends at 24:00 of its To date — said as that date, not as the next day's 00:00 */
+    if (at != null) roHead(ch, "At ", fmtDT(at), "");
+    else if (!toNow) roHead(ch, "Period end · ", "end of " + dM(x1 - 1), " (UTC)");
+    else if (liveMark) roHead(ch, "Now · ", fmtDT(x1), " (live estimate)");
+    else { const rl = lines.find(l => l.id === "REAL");            // the snapshot's OWN time, not the chart's right edge
+      roHead(ch, "Latest snapshot · ", fmtDT(rl ? rl.pts[rl.pts.length - 1].t : x1), S.pxLive ? "" : " (no live price right now)"); }
+    paintCross(ch, at, vals, at == null ? "" : fmtDT(at));
+  };
+  ch.paint();
 
-  /* legend with $ and % (both always) */
-  for (const sr of view){
-    const last = sr.pts[sr.pts.length - 1], r = last.v / anchor - 1;
-    const k = document.createElement("span"); k.className = "k";
-    const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = sr.col;
-    k.appendChild(key);
-    k.appendChild(document.createTextNode(sr.key + " "));
-    const bb = document.createElement("b"); bb.className = "mono";
-    bb.style.color = "var(--ink)";
-    bb.textContent = realMode === "%" ? pct(r, 2) + " · $" + last.v.toFixed(2)
-                                      : "$" + last.v.toFixed(2) + " (" + pct(r, 2) + ")";
-    k.appendChild(bb); lg.appendChild(k);
-  }
-  note2.textContent = "Blue = the ACTUAL Binance account equity (hourly snapshots, net of ALL real costs — " +
-    "trading fees, margin borrow interest, funding), from $" + anchor.toFixed(2) + " at " + fmtD(anchorT) + ". " +
-    "Amber = the Max B @50bp backtest simulation rebased to the same start (paper, not real fills). " +
-    "Gray = the same start value held in spot BTC — no margin, no strategy. All three lines are " +
-    "marked to the LIVE BTC price at the right edge; between Max B's daily closes its mark assumes " +
-    "the current published exposure (estimate). Includes a −$1.44 definitional restatement on " +
-    "29 Oct 2026 (BNB balances and liabilities are now counted in equity — not a trading loss)." +
+  /* the whole-record figures stay visible whenever a shorter period is on screen */
+  rec.hidden = !cut;
+  if (cut) rec.textContent = "Whole record since 20 Sep 2026: " +
+    whole.map(w => w.key.replace(" account", "") + " " + pctS(w.r - 1, 1)).join(" · ") + ".";
+
+  const mbExp = mbLiveExposure();
+  note2.textContent = "Blue = your ACTUAL Binance account (hourly, after all real costs). Amber and gray are " +
+    "what-if lines started from the same money " +
+    (rebased ? "at the start of this period ($" + anchor.toFixed(2) + " on " + dM(anchorT) + ") — switching period restarts them, so their dollars change; the blue line never does."
+             : "on " + fmtDay(anchorT0) + " ($" + anchor0.toFixed(2) + ").");
+  more2.textContent = "Blue is the account equity from the tracker's hourly snapshots, net of ALL real costs — trading fees, " +
+    "margin borrow interest, funding. Amber = the Max B @50bp backtest simulation (paper, not real fills)" +
+    (sim ? "; Max B is now " + (mbExp ? Math.abs(mbExp).toFixed(2) + "× " + (mbExp > 0 ? "long" : "short") : "flat") : "") +
+    ". Gray = the same money held in spot BTC — no margin, no strategy. " +
+    (!toNow ? "" : S.pxLive ? "All three lines are marked to the LIVE BTC price at the right edge; between Max B's daily " +
+                "closes its mark assumes the current published exposure (estimate). "
+              : "No live price right now: the right edge uses the last published values. ") +
+    "A period runs from 00:00 UTC on its first date to the end of its last date. " +
+    "The record began at $" + anchor0.toFixed(2) + " on " + fmtDay(anchorT0) + " and includes a −$1.44 definitional " +
+    "restatement on 29 Oct 2026 (BNB balances and liabilities are now counted in equity — not a trading loss)." +
     (S.rp && S.rp.bnb_fee_note ? " " + S.rp.bnb_fee_note : "");
+}
 
-  /* crosshair + tooltip */
-  const tip2 = document.getElementById("tip2");
-  let hov2 = [];
-  const lin = (pts, t) => {
-    if (t <= pts[0].t) return pts[0].v;
-    for (let i = 1; i < pts.length; i++) if (pts[i].t >= t){
-      const a = pts[i-1], b = pts[i], f = (t - a.t) / (b.t - a.t || 1);
-      return a.v + f * (b.v - a.v);
-    }
-    return pts[pts.length - 1].v;
+/* ── build the static chart controls once, then let data arrive ── */
+CH1.redraw = draw; CH2.redraw = drawReal;
+initReadout(CH1, 1); initReadout(CH2, 2);
+initPeriod(CH1, 1); initPeriod(CH2, 2);
+initModes(); initRealMode(); syncHint();
+bindPointer(CH1); bindPointer(CH2);
+/* the real-account period on the backtest chart: same start moment as chart 2, follows the latest data */
+$id("dq1").onclick = () => { CH1.P = { preset: null, from: iso(REAL_START_TS), to: null }; CH1.pin = null; draw(); };
+{
+  let amtTimer = null, applied = null;
+  try { amtIn.value = localStorage.getItem("startAmt") || ""; } catch (e) {}
+  const key = () => { const a = amount(); return a.bad ? "bad" : a.own ? String(a.v) : ""; };
+  applied = key();
+  /* redraw (and drop a pinned date) only when the AMOUNT really changed: leaving the field
+     to tap the chart must not undo that very tap */
+  const apply = () => {
+    try { localStorage.setItem("startAmt", amtIn.value.trim()); } catch (e) {}
+    const now = key();
+    if (now === applied){ syncAmount(amount()); return; }
+    applied = now; CH1.pin = null; draw();
   };
-  const fmtDT = t => { const x = new Date(t);
-    return MON[x.getUTCMonth()] + " " + x.getUTCDate() + ", " +
-           String(x.getUTCHours()).padStart(2, "0") + ":" + String(x.getUTCMinutes()).padStart(2, "0") + " UTC"; };
-  const hide2 = () => { tip2.style.display = "none"; hov2.forEach(e => e.remove()); hov2 = []; };
-  svg2.onpointermove = ev => {   // property assignment: re-running drawReal replaces, never stacks
-    const r = svg2.getBoundingClientRect();
-    const px2 = (ev.clientX - r.left) / r.width * W2;
-    if (px2 < M2.l || px2 > W2 - M2.r) return hide2();
-    const dense = vw.reduce((a, b) => a.pts.length >= b.pts.length ? a : b);
-    let best = dense.pts[0];
-    for (const p of dense.pts) if (Math.abs(xOf2(p.t) - px2) < Math.abs(xOf2(best.t) - px2)) best = p;
-    hov2.forEach(e => e.remove()); hov2 = [];
-    hov2.push(el2("line", { x1: xOf2(best.t), x2: xOf2(best.t), y1: M2.t, y2: H2 - M2.b, stroke: COL.mut, "stroke-width": 1 }));
-    tip2.textContent = "";
-    const dd = document.createElement("div"); dd.className = "d"; dd.textContent = fmtDT(best.t); tip2.appendChild(dd);
-    for (const sr of vw){
-      const v = lin(sr.pts, best.t), $v = fromD(v);
-      hov2.push(el2("circle", { cx: xOf2(best.t), cy: yOf2(v), r: 4, fill: sr.col, stroke: COL.card, "stroke-width": 2 }));
-      const rw = document.createElement("div"); rw.className = "r";
-      const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = sr.col;
-      const nm = document.createElement("span"); nm.textContent = sr.key.split(" @")[0];
-      const vv = document.createElement("span"); vv.className = "v mono";
-      vv.textContent = realMode === "%" ? pct($v / anchor - 1, 2) + " · $" + $v.toFixed(2)
-                                        : "$" + $v.toFixed(2) + " (" + pct($v / anchor - 1, 2) + ")";
-      rw.append(key, nm, vv); tip2.appendChild(rw);
-    }
-    tip2.style.display = "block";
-    const bx = tip2.getBoundingClientRect();
-    let lx = (xOf2(best.t) / W2) * r.width + 12;
-    if (lx + bx.width > r.width - 4) lx = (xOf2(best.t) / W2) * r.width - bx.width - 12;
-    tip2.style.left = lx + "px";
-    tip2.style.top = Math.max(4, (ev.clientY - r.top) - bx.height - 10) + "px";
-  };
-  svg2.onpointerleave = hide2;
+  /* redraw shortly after typing stops — a phone number pad has no Enter key */
+  amtIn.addEventListener("input", () => { clearTimeout(amtTimer); amtTimer = setTimeout(apply, 300); });
+  amtIn.addEventListener("keydown", e => { if (e.key === "Enter") amtIn.blur(); });
+  amtIn.addEventListener("focus", () => { const a = amount(); if (a.own) amtIn.value = String(a.v); });
+  amtIn.addEventListener("blur", () => {
+    clearTimeout(amtTimer);
+    const a = amount();
+    if (a.own) amtIn.value = a.v.toLocaleString("en-US", { maximumFractionDigits: 2 });   // tidy to 1,234.56
+    apply();
+  });
+  $id("amtClr").onclick = () => { amtIn.value = ""; apply(); amtIn.focus(); };   // the button hides itself: keep the focus
 }
-
-/* ── chart ── */
-const svg = document.getElementById("chart"), tip = document.getElementById("tip");
-const NS = "http://www.w3.org/2000/svg";
-const M = { l: 46, r: 14, t: 12, b: 26 }, W = 640, H = 330;
-let series = [], xOf = null, yOf = null;
-
-function mbLiveExposure(){
-  /* Max B's CURRENT signed exposure (x equity) from its live position card data */
-  const g = S.mb && S.mb.in_position ? (S.mb.model_growth || {}) : null;
-  if (!g || g.exposure_mult == null) return 0;
-  return (+g.exposure_mult) * (g.direction === "SHORT" ? -1 : 1);
+/* the charts are drawn in real pixels: redraw when the width really changes (rotation, resize)
+   — not on every mobile URL-bar show/hide, which only changes the height */
+{
+  let rzT = null;
+  window.addEventListener("resize", () => {
+    clearTimeout(rzT);
+    rzT = setTimeout(() => {
+      const w = Math.round(CH1.svg.parentNode.clientWidth);
+      if (w > 0 && w !== CH1.W){ draw(); drawReal(); }
+    }, 150);
+  });
 }
-function mbCloseOf(dstr){
-  if (!S.btc) return null;
-  for (let i = S.btc.length - 1; i >= 0; i--) if (S.btc[i].d === dstr) return S.btc[i].v;
-  return null;
-}
-function mbSeries(){
-  if (!(S.mb && S.mb.dates && S.mb.scenarios)) return null;
-  const sc = S.mb.scenarios["Max B @50bp"];
-  if (!sc || !sc.eq) return null;
-  const n = S.mb.dates.length, stride = Math.max(1, Math.ceil(n / 900));
-  const out = [];
-  for (let i = 0; i < n; i += stride) out.push({ t: ms(S.mb.dates[i]), d: S.mb.dates[i], v: sc.eq[i] });
-  if (out[out.length - 1].d !== S.mb.dates[n - 1])
-    out.push({ t: ms(S.mb.dates[n - 1]), d: S.mb.dates[n - 1], v: sc.eq[n - 1] });
-  /* LIVE MARK: carry the curve to today at the live price and current exposure */
-  const lastD = S.mb.dates[n - 1], closeD = mbCloseOf(lastD);
-  const dNow = new Date().toISOString().slice(0, 10);
-  if (S.px > 0 && closeD > 0 && dNow > lastD)
-    out.push({ t: ms(dNow), d: dNow,
-               v: out[out.length - 1].v * (1 + mbLiveExposure() * (S.px / closeD - 1)) });
-  return out;
-}
-function btcSeries(){
-  if (!S.btc || S.btc.length < 2) return null;
-  const p0 = S.btc[0].v;
-  if (!(p0 > 0)) return null;
-  const n = S.btc.length, stride = Math.max(1, Math.ceil(n / 900));
-  const out = [];
-  for (let i = 0; i < n; i += stride) out.push({ t: S.btc[i].t, d: S.btc[i].d, v: 500 * S.btc[i].v / p0 });
-  if (out[out.length - 1].d !== S.btc[n - 1].d)
-    out.push({ t: S.btc[n - 1].t, d: S.btc[n - 1].d, v: 500 * S.btc[n - 1].v / p0 });
-  return out;
-}
-function interpAt(pts, t){
-  if (t < pts[0].t || t > pts[pts.length - 1].t) return null;
-  for (let i = 1; i < pts.length; i++){
-    if (pts[i].t >= t){
-      const a = pts[i-1], b = pts[i], f = (t - a.t) / (b.t - a.t || 1);
-      return Math.exp(Math.log(a.v) + f * (Math.log(b.v) - Math.log(a.v)));
-    }
-  }
-  return pts[pts.length - 1].v;
-}
-function el(name, attrs, parent){
-  const e = document.createElementNS(NS, name);
-  for (const k in attrs) e.setAttribute(k, attrs[k]);
-  (parent || svg).appendChild(e); return e;
-}
-function logTicks(lo, hi){
-  const out = [];
-  for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++)
-    for (const m of [1,2,5]){ const v = m * 10**e; if (v >= lo && v <= hi) out.push(v); }
-  let step = 1; while (out.length / step > 6) step++;
-  return out.filter((_, i) => i % step === 0);
-}
-const RANGES = [["1Y",365],["3Y",1095],["5Y",1825],["ALL",0]];
-const MODES = [["BOTH","Both"],["M1","M1 vs M5"],["MB","Max B"]];
-
-function draw(){
-  svg.textContent = "";
-  series = [];
-  const mb = mbSeries();
-  if (S.m1 && mode !== "MB") series.push({ key: "M1 vs M5", col: COL.m1, pts: S.m1 });
-  if (mb && mode !== "M1") series.push({ key: "Max B @50bp", col: COL.mb, pts: mb });
-  const bhold = btcSeries();
-  if (bhold) series.push({ key: "BTC hold", col: COL.btc, pts: bhold });
-  const note = document.getElementById("chartNote");
-  if (!series.length){
-    note.textContent = "⚠ no curve data reachable — nothing to plot.";
-    renderLegend(); return;
-  }
-  const lastT = Math.max(...series.map(s => s.pts[s.pts.length - 1].t));
-  let view = series.map(s => ({ ...s, pts: s.pts }));
-  if (range !== "ALL"){
-    const start = lastT - RANGES.find(r => r[0] === range)[1] * DAY;
-    view = series.map(s => {
-      const inWin = s.pts.filter(p => p.t >= start);
-      const anchorV = interpAt(s.pts, start);
-      const pts = anchorV != null ? [{ t: start, d: new Date(start).toISOString().slice(0,10), v: anchorV }, ...inWin] : inWin;
-      return { ...s, pts };
-    }).filter(s => s.pts.length > 1);
-  }
-  if (!view.length){ note.textContent = "no data in this window"; renderLegend(); return; }
-  if (disp === "%"){
-    /* rebase each model at its own first visible point -> relative comparison */
-    view = view.map(s => {
-      const v0 = s.pts[0].v;
-      return { ...s, v0, pts: s.pts.map(p => ({ ...p, o: p.v, v: p.v / v0 })) };
-    });
-  }
-  const allV = view.flatMap(s => s.pts.map(p => p.v));
-  const allT = view.flatMap(s => [s.pts[0].t, s.pts[s.pts.length - 1].t]);
-  const lo = Math.min(...allV) * .85, hi = Math.max(...allV) * 1.25;
-  const x0 = Math.min(...allT), x1 = Math.max(...allT);
-  xOf = t => M.l + (t - x0) / (x1 - x0 || 1) * (W - M.l - M.r);
-  yOf = v => M.t + (1 - (Math.log(v) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * (H - M.t - M.b);
-
-  for (const v of logTicks(lo, hi)){
-    el("line", { x1: M.l, x2: W - M.r, y1: yOf(v), y2: yOf(v), stroke: COL.line, "stroke-width": 1 });
-    el("text", { x: M.l - 6, y: yOf(v) + 3.5, "text-anchor": "end", fill: COL.mut, "font-size": 10,
-                 "font-family": "ui-monospace,Consolas,monospace" }).textContent = disp === "%" ? fmtPctC(v) : fmt$(v);
-  }
-  for (let i = 0; i <= 5; i++){
-    const t = x0 + (x1 - x0) * i / 5, d = new Date(t);
-    const lab = (range === "ALL" || range === "5Y") ? String(d.getUTCFullYear())
-              : MON[d.getUTCMonth()] + " ’" + String(d.getUTCFullYear()).slice(2);
-    el("text", { x: xOf(t), y: H - 8, "text-anchor": i === 0 ? "start" : i === 5 ? "end" : "middle",
-                 fill: COL.mut, "font-size": 10 }).textContent = lab;
-  }
-  const endLabs = [];
-  for (const s of view){
-    const dPath = s.pts.map((p, i) => (i ? "L" : "M") + xOf(p.t).toFixed(1) + " " + yOf(p.v).toFixed(1)).join(" ");
-    el("path", { d: dPath, fill: "none", stroke: s.col, "stroke-width": 2,
-                 "stroke-linejoin": "round", "stroke-linecap": "round" });
-    const lp = s.pts[s.pts.length - 1];
-    el("circle", { cx: xOf(lp.t), cy: yOf(lp.v), r: 4.5, fill: s.col, stroke: COL.card, "stroke-width": 2 });
-    endLabs.push({ x: xOf(lp.t), y: yOf(lp.v), txt: disp === "%" ? fmtPctC(lp.v) : fmt$(lp.v) });
-  }
-  /* collision-nudge end labels apart */
-  endLabs.sort((a, b) => a.y - b.y);
-  for (let i = 1; i < endLabs.length; i++)
-    if (endLabs[i].y - endLabs[i - 1].y < 14) endLabs[i].y = endLabs[i - 1].y + 14;
-  for (const L of endLabs)
-    el("text", { x: L.x - 8, y: L.y - 9, "text-anchor": "end", fill: COL.ink, "font-size": 11,
-                 "font-weight": 700, "font-family": "ui-monospace,Consolas,monospace" }).textContent = L.txt;
-
-  window.__view = view;
-  note.textContent = (disp === "%" ? "Percent change since the window start (each model rebased at its own first visible point), log scale. "
-                                   : "Log scale. ") + "M1 vs M5 is a sparse change-point curve" +
-    (S.m1 ? " (to " + S.m1[S.m1.length-1].d + (S.m1live ? ", live daily" : ", static") + ")" : "") +
-    (mb ? "; Max B @50bp is daily" + (view.length && range === "ALL" ? " (downsampled for drawing)" : "") + ", live from btc-power." : ".") +
-    (bhold ? " Gray = $500 held in spot BTC from the same start — no leverage, no strategy." : "");
-  renderLegend();
-}
-function renderLegend(){
-  const lg = document.getElementById("legend"); lg.textContent = "";
-  for (const s of series){
-    const k = document.createElement("span"); k.className = "k";
-    const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = s.col;
-    k.appendChild(key); k.appendChild(document.createTextNode(s.key)); lg.appendChild(k);
-  }
-}
-function chips(){
-  const row = document.getElementById("rangeRow"); row.textContent = "";
-  for (const [id] of RANGES){
-    const b = document.createElement("button");
-    b.className = "chip" + (range === id ? " on" : ""); b.textContent = id;
-    b.onclick = () => { range = id; chips(); draw(); }; row.appendChild(b);
-  }
-  const pb = document.createElement("button");
-  pb.className = "chip" + (disp === "%" ? " on" : ""); pb.textContent = "%";
-  pb.title = "Show % change since the window start (for comparison)";
-  pb.setAttribute("aria-pressed", disp === "%" ? "true" : "false");
-  pb.onclick = () => { disp = disp === "%" ? "$" : "%"; chips(); draw(); };
-  row.appendChild(pb);
-  const sp = document.createElement("span"); sp.className = "spacer"; row.appendChild(sp);
-  for (const [id, lab] of MODES){
-    const b = document.createElement("button");
-    b.className = "chip" + (mode === id ? " on" : ""); b.textContent = lab;
-    b.onclick = () => { mode = id; chips(); draw(); }; row.appendChild(b);
-  }
-}
-
-/* crosshair + tooltip */
-let hoverEls = [];
-svg.addEventListener("pointermove", ev => {
-  const view = window.__view; if (!view || !view.length) return;
-  const r = svg.getBoundingClientRect();
-  const px = (ev.clientX - r.left) / r.width * W;
-  if (px < M.l || px > W - M.r) return hideTip();
-  /* snap to nearest point of the densest visible series */
-  const dense = view.reduce((a, b) => a.pts.length >= b.pts.length ? a : b);
-  let best = dense.pts[0];
-  for (const p of dense.pts) if (Math.abs(xOf(p.t) - px) < Math.abs(xOf(best.t) - px)) best = p;
-  hoverEls.forEach(e => e.remove()); hoverEls = [];
-  hoverEls.push(el("line", { x1: xOf(best.t), x2: xOf(best.t), y1: M.t, y2: H - M.b, stroke: COL.mut, "stroke-width": 1 }));
-  tip.textContent = "";
-  const dd = document.createElement("div"); dd.className = "d"; dd.textContent = fmtD(best.t); tip.appendChild(dd);
-  for (const s of view){
-    const v = interpAt(s.pts, best.t); if (v == null) continue;
-    hoverEls.push(el("circle", { cx: xOf(best.t), cy: yOf(v), r: 4, fill: s.col, stroke: COL.card, "stroke-width": 2 }));
-    const rw = document.createElement("div"); rw.className = "r";
-    const key = document.createElement("span"); key.className = "lk"; key.style.borderTopColor = s.col;
-    const nm = document.createElement("span"); nm.textContent = s.key.split(" @")[0];
-    const vv = document.createElement("span"); vv.className = "v mono";
-    vv.textContent = disp === "%" ? fmtPctC(v) + " · " + fmt$(v * s.v0) : fmtFull(v);
-    rw.append(key, nm, vv); tip.appendChild(rw);
-  }
-  tip.style.display = "block";
-  const bx = tip.getBoundingClientRect();
-  let lx = (xOf(best.t) / W) * r.width + 12;
-  if (lx + bx.width > r.width - 4) lx = (xOf(best.t) / W) * r.width - bx.width - 12;
-  tip.style.left = lx + "px";
-  tip.style.top = Math.max(4, (ev.clientY - r.top) - bx.height - 10) + "px";
-});
-function hideTip(){ tip.style.display = "none"; hoverEls.forEach(e => e.remove()); hoverEls = []; }
-svg.addEventListener("pointerleave", hideTip);
 
 /* ── head-to-head table ── */
 function renderH2H(){
@@ -962,10 +1579,10 @@ function renderH2H(){
   const sc50 = S.mb && S.mb.scenarios ? S.mb.scenarios["Max B @50bp"] : null;
   const mbM = sc50 ? sc50.metrics : null;
   const rows = [
-    ["Final (from $500)", m1Final ? fmt$(m1Final) : "—", mbM ? fmt$(mbM.final) : "—"],
-    ["CAGR", "201%/yr*", mbM ? Math.round(mbM.cagr * 100) + "%/yr" : "—"],
+    ["Final (from $500, since 2014)", m1Final ? fmt$(m1Final) : "—", mbM ? fmt$(mbM.final) : "—"],
+    ["Avg per year (CAGR)", "201%/yr*", mbM ? Math.round(mbM.cagr * 100) + "%/yr" : "—"],
     ["Sharpe", "1.38*", mbM ? mbM.sharpe.toFixed(2) : "—"],
-    ["Max drawdown", "−44%*", mbM ? "−" + Math.round(Math.abs(mbM.maxdd) * 100) + "%" : "—"],
+    ["Worst dip (max drawdown)", "−44%*", mbM ? "−" + Math.round(Math.abs(mbM.maxdd) * 100) + "%" : "—"],
     ["Calmar", "4.54*", mbM ? (mbM.cagr / Math.abs(mbM.maxdd)).toFixed(2) : "—"],
     ["Liquidations", "0", sc50 && sc50.liq != null ? String(sc50.liq) : "—"],
     ["Leverage", "5× long / 2× short", "up to ~1.8× equity, dynamic"],
@@ -976,7 +1593,7 @@ function renderH2H(){
     const r = t.insertRow();
     row.forEach((c, i) => {
       const td = r.insertCell();
-      if (i > 0 && row[0] === "Final (from $500)" && swatches[i]){
+      if (i > 0 && row[0] === "Final (from $500, since 2014)" && swatches[i]){
         const sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = swatches[i];
         td.appendChild(sw);
       }
@@ -992,7 +1609,7 @@ function renderScen(){
   t.textContent = "";
   if (!(S.mb && S.mb.scenarios)){ note.textContent = "⚠ btc-power feed unreachable — scenarios unavailable."; return; }
   const hr = t.insertRow();
-  for (const h of ["Scenario","Final","CAGR","MaxDD"]){
+  for (const h of ["Scenario","Final","Avg / yr","Worst dip"]){
     const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
   for (const [name, sc] of Object.entries(S.mb.scenarios)){
     const r = t.insertRow(), m = sc.metrics;
@@ -1227,10 +1844,13 @@ let curTab = "overview";
 function initTabs(){
   const bar = document.getElementById("tabbar");
   const apply = tb => {
+    const was = curTab;
     curTab = tb;
     document.body.classList.toggle("tab-trades", tb === "trades");
     for (const b of bar.querySelectorAll(".chip"))
       b.className = "chip" + (b.dataset.tab === tb ? " on" : "");
+    /* the charts size themselves to real pixels and were hidden: redraw on return */
+    if (was !== tb && tb === "overview") for (const fn of [draw, drawReal]){ try { fn(); } catch (e) { console.error(e); } }
   };
   for (const b of bar.querySelectorAll(".chip")) b.onclick = () => apply(b.dataset.tab);
   apply(curTab);
