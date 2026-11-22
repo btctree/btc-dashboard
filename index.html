@@ -1361,8 +1361,8 @@ function drawReal(){
   /* the ACTUAL account: hourly equity snapshots from the shared account tracker */
   let real = null, anchor = null, anchorT = null, liveMark = false;
   if (S.rp && Array.isArray(S.rp.equity_history)){
-    const pts = S.rp.equity_history
-      .map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
+    const pts = S.rp.equity_history                 // exact read time when stored (orders deposits right)
+      .map(p => ({ t: p.ms != null ? +p.ms : parseRpTs(p.t), v: +p.eq }))
       .filter(p => isFinite(p.t) && p.t >= REAL_START_TS && p.v > 0)
       .sort((a, b) => a.t - b.t);
     if (pts.length){ real = pts; anchor = pts[0].v; anchorT = pts[0].t; }
@@ -1384,10 +1384,62 @@ function drawReal(){
   const PIN = { t: Date.UTC(2026, 8, 20, 0, 5), v: 306.87 };
   if (real[0].t > PIN.t + 2 * 3600e3){ real = [PIN, ...real]; anchor = PIN.v; anchorT = PIN.t; }
 
-  /* Max B @50bp simulation rebased to the SAME start value at the same date.
+  /* DEPOSITS / WITHDRAWALS (owner 2026-11-22: "add deposit tracker"). Money moved into or out
+     of the margin account is not profit. The blue line stays the REAL balance (it includes the
+     money); each what-if line RECEIVES THE SAME MONEY AT THE SAME MOMENT, so the dollar lines
+     stay a like-for-like comparison; every % on this chart is TIME-WEIGHTED (flows removed). */
+  const flowsKnown = !!(S.rp && Array.isArray(S.rp.capital_flows));
+  /* the last real SNAPSHOT (not the live mark): flows after it are not in any reading yet */
+  const lastSnapT = (real.length > 1 && liveMark) ? real[real.length - 2].t : real[real.length - 1].t;
+  const FL = (flowsKnown ? S.rp.capital_flows : [])
+    .map(f => ({ t: +f.ms, a: f.usd == null ? null : (+f.dir) * (+f.usd) }))
+    .filter(f => isFinite(f.t) && f.t >= REAL_START_TS && f.t <= lastSnapT).sort((x, y) => x.t - y.t);
+  const flowsUnvalued = FL.some(f => f.a == null || !isFinite(f.a));
+  const FLv = FL.filter(f => f.a != null && isFinite(f.a));
+  const flowIn = (t0, t1) => FLv.reduce((s, f) => s + (f.t > t0 && f.t <= t1 ? f.a : 0), 0);
+  const cumF = t => FLv.reduce((s, f) => s + (f.t <= t ? f.a : 0), 0);
+  /* the real balance BETWEEN two snapshots, aware of money moved in between (a straight line
+     across a deposit would invent balances that never existed at a period edge) */
+  const realAt = (pts, t) => linAt(pts.map(p => ({ t: p.t, v: p.v - cumF(p.t) })), t) + cumF(t);
+  /* time-weighted factor of the real line: each step's growth with that step's flows removed.
+     A step where removing the flow leaves nothing (the reading does not hold the money yet)
+     DEFERS the flow to the next reading — a deposit can never be booked as growth. Steps from an
+     (almost) empty account count as flat. Mirrors the tracker's twr_since. */
+  const MIN_TWR_EQ = 5;
+  const twrOf = pts => { const out = [{ t: pts[0].t, v: 1 }]; let a = pts[0], f = 1;
+    for (let i = 1; i < pts.length; i++){
+      const b = pts[i], moved = flowIn(a.t, b.t);
+      if (a.v >= MIN_TWR_EQ){
+        const g = (b.v - moved) / a.v;
+        if (!(g > 0) && moved){ out.push({ t: b.t, v: f }); continue; }   // carry the flow forward
+        if (isFinite(g) && g > 0) f *= g;
+      }
+      out.push({ t: b.t, v: f }); a = b;
+    }
+    return out; };
+  /* a what-if line in DOLLARS from its own value path `raw` (any units), started with v0 at t0
+     and receiving the account's flows at their moments; `rp` = its flow-free growth factor */
+  const fundLine = (raw, t0, v0) => {
+    const r0 = linAt(raw, t0);
+    if (!(r0 > 0)) return null;
+    let units = v0 / r0; const pts = [{ t: t0, v: v0 }], rp = [{ t: t0, v: 1 }];
+    const fl = FLv.filter(f => f.t > t0); let k = 0;
+    const flowsUpTo = tEnd => { while (k < fl.length && fl[k].t <= tEnd){
+        const rv = linAt(raw, fl[k].t);
+        if (rv > 0){ pts.push({ t: fl[k].t, v: units * rv }); rp.push({ t: fl[k].t, v: rv / r0 });
+          units = Math.max(0, units + fl[k].a / rv);                  // buys/sells at the line's own price
+          pts.push({ t: fl[k].t + 1, v: units * rv }); rp.push({ t: fl[k].t + 1, v: rv / r0 }); }
+        k++; } };
+    for (const p of raw){ if (p.t <= t0) continue;
+      flowsUpTo(p.t); pts.push({ t: p.t, v: units * p.v }); rp.push({ t: p.t, v: p.v / r0 }); }
+    flowsUpTo(lastSnapT);      // money moved after the line's last point (e.g. after the last daily close, no live price)
+    return { pts, rp };
+  };
+
+  /* Max B @50bp simulation started from the SAME money at the same date.
      Base = Max B's last daily close BEFORE the start, so its very first
      post-start close already draws a line from the shared anchor point. */
-  let sim = null;
+  let simRaw = null;
   if (S.mb && S.mb.dates && S.mb.scenarios && S.mb.scenarios["Max B @50bp"]){
     const eq = S.mb.scenarios["Max B @50bp"].eq;
     let base = null;
@@ -1400,36 +1452,39 @@ function drawReal(){
       if (t < REAL_START_TS){ base = eq[i]; continue; }
       pts.push({ t: t + DAY, v: eq[i] });
     }
-    if (base != null)
-      sim = [{ t: anchorT, v: anchor },
-             ...pts.filter(p => p.t > anchorT).map(p => ({ t: p.t, v: anchor * p.v / base }))];
+    if (base != null) simRaw = [{ t: anchorT, v: base }, ...pts.filter(p => p.t > anchorT)];
     /* LIVE MARK: between Max B's daily closes, carry the sim at its current exposure
        from the last published close to the live price (estimate, labeled in the caption) */
-    if (sim && S.px > 0 && S.pxLive){
+    if (simRaw && S.px > 0 && S.pxLive){
       const lastD = S.mb.dates[S.mb.dates.length - 1], closeD = mbCloseOf(lastD);
-      const lastS = sim[sim.length - 1];
+      const lastS = simRaw[simRaw.length - 1];
       if (closeD > 0 && Date.now() > lastS.t + 60e3)
-        sim = [...sim, { t: Date.now(), v: lastS.v * (1 + mbLiveExposure() * (S.px / closeD - 1)) }];
+        simRaw = [...simRaw, { t: Date.now(), v: lastS.v * (1 + mbLiveExposure() * (S.px / closeD - 1)) }];
     }
   }
-  const view = [{ id: "REAL", key: "Real account", col: COL.m1, w: 2.5, pts: real }];
-  if (sim) view.push({ id: "SIM", key: "Max B sim", col: COL.mb, w: 1.5, pts: sim });
-  /* BTC buy-and-hold: same start value put into spot BTC, no margin, no strategy */
+  /* BTC buy-and-hold: same money put into spot BTC, no margin, no strategy.
+     base = the first candle's OPEN: identical across 1h/4h/1d intervals, so the line
+     cannot jump when the fetch interval widens as the window grows (audit 2026-09-21) */
+  let btcRaw = null;
   if (S.btcRT && S.btcRT.length > 1){
     const inWin = S.btcRT.filter(p => p.t >= REAL_START_TS);
     if (inWin.length > 1){
-      /* base = the first candle's OPEN: identical across 1h/4h/1d intervals, so the line
-         cannot jump when the fetch interval widens as the window grows (audit 2026-09-21) */
       const b0 = inWin[0].o > 0 ? inWin[0].o : inWin[0].v;
-      view.push({ id: "BTC", key: "BTC hold", col: COL.btc, w: 1.5,
-                  pts: [{ t: anchorT, v: anchor }, ...inWin.filter(p => p.t > anchorT).map(p => ({ t: p.t, v: anchor * p.v / b0 }))] });
+      btcRaw = [{ t: anchorT, v: b0 }, ...inWin.filter(p => p.t > anchorT).map(p => ({ t: p.t, v: p.v }))];
     }
+  }
+  const view = [{ id: "REAL", key: "Real account", col: COL.m1, w: 2.5, pts: real, rp: twrOf(real) }];
+  const whatIfs = [["SIM", "Max B sim", COL.mb, simRaw], ["BTC", "BTC hold", COL.btc, btcRaw]];
+  for (const [id, key, col, raw] of whatIfs){
+    const f = raw && fundLine(raw, anchorT, anchor);
+    if (f && f.pts.length > 1) view.push({ id, key, col, w: 1.5, raw, pts: f.pts, rp: f.rp });
   }
 
   /* PERIOD. Whole-record figures are taken first; then a later start restarts the two
-     what-if lines from the account's ACTUAL value at that moment. The real line is never
-     rescaled — it is always the account's actual dollars. */
-  const whole = view.map(sr => ({ key: sr.key, r: sr.pts[sr.pts.length - 1].v / anchor }));
+     what-if lines from the account's ACTUAL value at that moment (and from then on they get
+     the same deposits). The real line is never rescaled — it is always the account's actual
+     dollars. Every % is time-weighted from the period start. */
+  const whole = view.map(sr => ({ key: sr.key, r: sr.rp[sr.rp.length - 1].v / sr.rp[0].v }));
   const lo2 = REAL_START_TS, hi2 = Math.max(...view.map(sr => sr.pts[sr.pts.length - 1].t));
   const win = resolveWin(ch.P, lo2, hi2, PRESETS_RT);
   ch.lo = lo2; ch.hi = hi2; ch.win = win; syncPeriod(ch, 2);
@@ -1438,20 +1493,22 @@ function drawReal(){
   const anchor0 = anchor, anchorT0 = anchorT;
   const rebased = win.a > anchorT0 + 60e3, cut = rebased || win.b < hi2 - 60e3;
   if (rebased){
-    anchor = linAt(real, win.a); anchorT = win.a;
+    anchor = realAt(real, win.a); anchorT = win.a;
     for (const sr of view) if (sr.id !== "REAL"){
-      const b0 = linAt(sr.pts, win.a), f = b0 > 0 ? anchor / b0 : 1;
-      sr.pts = sr.pts.map(p => ({ t: p.t, v: p.v * f }));
+      const f = fundLine(sr.raw, win.a, anchor);
+      if (f){ sr.pts = f.pts; sr.rp = f.rp; }
     }
   }
-  if (cut) for (const sr of view) sr.pts = clipWin(sr.pts, win.a, win.b, linAt);
-  const shown = view.filter(sr => sr.pts.length > 0);
+  for (const sr of view) sr.rA = linAt(sr.rp, win.a);            // growth factor AT the period start
+  if (cut) for (const sr of view){
+    sr.pts = clipWin(sr.pts, win.a, win.b, sr.id === "REAL" ? realAt : linAt); sr.rp = clipWin(sr.rp, win.a, win.b, linAt); }
+  const shown = view.filter(sr => sr.pts.length > 0 && sr.rp.length > 0 && sr.rA > 0);
   if (!shown.length) return blank("No data in this period.");
 
-  const toD = v => realMode === "%" ? (v / anchor - 1) * 100 : v;   // display transform
-  const fromD = v => realMode === "%" ? anchor * (1 + v / 100) : v;
-  const lines = shown.map(sr => ({ ...sr, pts: sr.pts.map(p => ({ t: p.t, v: toD(p.v) })) }));
-  const anchorD = toD(anchor);
+  /* display: $ = the line's dollars; % = its time-weighted growth since the period start */
+  const lines = shown.map(sr => ({ ...sr, usd: sr.pts,
+    pts: realMode === "%" ? sr.rp.map(p => ({ t: p.t, v: (p.v / sr.rA - 1) * 100 })) : sr.pts }));
+  const anchorD = realMode === "%" ? 0 : anchor;
   const allV = lines.flatMap(l => l.pts.map(p => p.v));
   /* at least ±5% around the start stays in view: a quiet week is not a roller-coaster */
   const minR = realMode === "%" ? 5 : anchor * 0.05;
@@ -1486,7 +1543,8 @@ function drawReal(){
       const v = at == null ? last.v : (at > last.t + 3 * 3600e3 ? null : linAt(l.pts, at));
       vals.push(v == null ? null : { col: l.col, v });
       if (v == null){ ch.roRows.appendChild(roRow(l.col, l.key, "—", "")); continue; }
-      const usd = fromD(v), r = usd / anchor - 1;
+      const tt = at == null ? last.t : at;
+      const usd = linAt(l.usd, tt), r = linAt(l.rp, tt) / l.rA - 1;      // dollars; time-weighted %
       ch.roRows.appendChild(roRow(l.col, l.key, "$" + usd.toFixed(2), pctS(r, 2), retCls(r, 2)));
     }
     /* at rest: "Now" only with a live mark; otherwise the tracker's last snapshot, by name.
@@ -1510,9 +1568,27 @@ function drawReal(){
     "what-if lines started from the same money " +
     (rebased ? "at the start of this period ($" + anchor.toFixed(2) + " on " + dM(anchorT) + ") — switching period restarts them, so their dollars change; the blue line never does."
              : "on " + fmtDay(anchorT0) + " ($" + anchor0.toFixed(2) + ").");
-  more2.textContent = "Blue is the account equity from the tracker's hourly snapshots, net of ALL real costs — trading fees, " +
+  /* deposits / withdrawals: say what they did to the lines — only when there are any */
+  if (FL.length){
+    const net = FLv.reduce((s, f) => s + f.a, 0), nIn = FLv.filter(f => f.a > 0).length, nOut = FLv.filter(f => f.a < 0).length;
+    note2.textContent += " Money moved in/out since 20 Sep: " +
+      [nIn ? nIn + " deposit" + (nIn > 1 ? "s" : "") : "", nOut ? nOut + " withdrawal" + (nOut > 1 ? "s" : "") : ""].filter(Boolean).join(" and ") +
+      ", net " + (net >= 0 ? "+$" : "−$") + Math.abs(net).toFixed(2) + ". Blue includes it (it is your real balance); " +
+      "amber and gray receive the same money at the same moment; every % here is time-weighted, so deposits are not counted as gains.";
+  }
+  if (flowsUnvalued){ const d = document.createElement("div");
+    d.textContent = "⚠ A transfer has no dollar value yet (price lookup failed) — it is left out of the what-if lines and % until the tracker's next update.";
+    notes2.appendChild(d); }
+  if (!flowsKnown){ const d = document.createElement("div");
+    d.textContent = "⚠ The account tracker does not publish deposits/withdrawals yet — a deposit would show on this chart as a gain.";
+    notes2.appendChild(d); }
+  if (S.rp && S.rp.flows_ok === false){ const d = document.createElement("div");
+    d.textContent = "⚠ The tracker could not read the transfer history on its last update — a very recent deposit or withdrawal may be missing from these adjustments.";
+    notes2.appendChild(d); }
+  more2.textContent = "Blue is the account equity from the tracker's snapshots (hourly for the last 90 days; each older day keeps " +
+    "its lowest, highest and last reading), net of ALL real costs — trading fees, " +
     "margin borrow interest, funding. Amber = the Max B @50bp backtest simulation (paper, not real fills)" +
-    (sim ? "; Max B is now " + (mbExp ? Math.abs(mbExp).toFixed(2) + "× " + (mbExp > 0 ? "long" : "short") : "flat") : "") +
+    (view.some(sr => sr.id === "SIM") ? "; Max B is now " + (mbExp ? Math.abs(mbExp).toFixed(2) + "× " + (mbExp > 0 ? "long" : "short") : "flat") : "") +
     ". Gray = the same money held in spot BTC — no margin, no strategy. " +
     (!toNow ? "" : S.pxLive ? "All three lines are marked to the LIVE BTC price at the right edge; between Max B's daily " +
                 "closes its mark assumes the current published exposure (estimate). "
@@ -1737,24 +1813,51 @@ function renderRealTrades(){
   for (const h of ["Side","Opened → Closed","Entry / Exit","Qty (BTC)","Gross P&L","Fees","Interest","Net P&L"]){
     const th = document.createElement("th"); th.textContent = h; hr.appendChild(th); }
   const eqHist = Array.isArray(S.rp.equity_history)
-    ? S.rp.equity_history.map(p => ({ t: parseRpTs(p.t), v: +p.eq }))
+    ? S.rp.equity_history.map(p => ({ t: p.ms != null ? +p.ms : parseRpTs(p.t), v: +p.eq }))
         .filter(p => isFinite(p.t) && p.v > 0).sort((a, b) => a.t - b.t)
     : [];
-  const eqAt = ts => { if (!isFinite(ts) || !eqHist.length) return null;
-    let best = null; for (const p of eqHist){ if (p.t <= ts) best = p; else break; }
-    return best ? best.v : eqHist[0].v; };
-  /* the record starts at the M1 takeover — pre-handover activity is excluded */
-  const rows = [];
+  /* % base = account equity when the trade opened: the tracker stores it on each trade
+     (eq_open, taken while hourly data existed); else the last snapshot at or before the open;
+     the baseline only for the flat gap between the baseline and the first stored point. */
+  const blTs = S.rp.baseline ? parseRpTs(S.rp.baseline.ts) : NaN, blEq = S.rp.baseline ? +S.rp.baseline.equity : NaN;
+  /* money moved in/out between the reading and the open belongs in the base: the trader sizes
+     a new trade from the deposit-inclusive balance (review 2026-11-22) */
+  const flowsRT = (Array.isArray(S.rp.capital_flows) ? S.rp.capital_flows : [])
+    .filter(f => f.usd != null && isFinite(+f.ms)).map(f => ({ t: +f.ms, a: (+f.dir) * (+f.usd) }));
+  const movedIn = (t0, t1) => flowsRT.reduce((s, f) => s + (f.t > t0 && f.t <= t1 ? f.a : 0), 0);
+  const eqAt = (ts, tr) => { if (tr && +tr.eq_open > 0) return +tr.eq_open;
+    if (!isFinite(ts)) return null;
+    if (eqHist.length && ts >= eqHist[0].t){ let best = eqHist[0];
+      for (const p of eqHist){ if (p.t <= ts) best = p; else break; } return best.v + movedIn(best.t, ts); }
+    /* the baseline covers the flat gap before the first reading only if nothing happened in it */
+    const busy = movedIn(blTs, ts) !== 0 || (S.rp.recent_closed || []).some(o => {
+      const c = o.closed_ms != null ? +o.closed_ms : parseRpTs(o.closed); return c > blTs && c < ts; });
+    if (isFinite(blTs) && ts >= blTs && blEq > 0 && !busy && (!eqHist.length || ts < eqHist[0].t)) return blEq;
+    return null; };
+  /* EVERY closed trade (owner 2026-11-21: "all real live trading record on the trade tape").
+     The tracker keeps a persisted ledger since `ledger_since`; trades opened before the M1
+     takeover are tagged Max B. A walk LEFTOVER is hidden — identified by structure, not size
+     alone: under 0.001 BTC AND born at one trade's close AND ended at another's open (the
+     19→21 Sep 0.00022 "short" — no BTC was ever borrowed). Its dollars are stated in the note. */
+  const RESIDUE_BTC = 0.001;
+  const closed = S.rp.recent_closed || [];
+  const tOpen = tr => tr.opened_ms != null ? +tr.opened_ms : parseRpTs(tr.opened);
+  const tClose = tr => tr.closed_ms != null ? +tr.closed_ms : parseRpTs(tr.closed);
+  const near = (a, b) => isFinite(a) && isFinite(b) && Math.abs(a - b) < 60e3;
+  const isResidue = tr => tr.max_qty != null && +tr.max_qty < RESIDUE_BTC &&
+    closed.some(o => o !== tr && near(tClose(o), tOpen(tr))) &&
+    closed.some(o => o !== tr && near(tOpen(o), tClose(tr)));
+  const rows = [], residues = [];
   if (S.rp.open) rows.push(Object.assign({}, S.rp.open, { _open: true }));
   /* recent_closed arrives newest-first from the tracker — keep it that way so this table
      matches the model-trade tables beside it (sync audit 2026-10-30) */
-  for (const tr of (S.rp.recent_closed || []))
-    if (parseRpTs(tr.closed) >= REAL_START_TS) rows.push(tr);
-  if (!rows.length){ note.textContent = "No real trades since 20 Sep 2026 yet — the record starts at the M1 takeover " +
-    "(the pre-handover Max B-era trade is excluded). The first M1 fill (order ids m1tr-…) appears after the " +
-    "tracker's next hourly update."; return; }
+  for (const tr of closed){ if (isResidue(tr)) residues.push(tr); else rows.push(tr); }
+  if (!rows.length){ note.textContent = "No real trades recorded yet — they appear after the tracker's next hourly update."; return; }
   let intPending = false, intActual = false, pxPending = false, intSum = 0;
-  const dt = x => x ? String(x).replace(" UTC", "").replace(/^20\d\d-/, "") : "—";
+  /* the ledger can span years: keep the year when it is not the current one */
+  const curY = String(new Date().getUTCFullYear());
+  const dt = x => { if (!x) return "—"; const s = String(x).replace(" UTC", "");
+    return s.slice(0, 4) === curY ? s.slice(5) : s; };
   const money = v => (v >= 0 ? "+$" : "−$") + Math.abs(v).toFixed(2);
   const val = (r, v, base, signed, extra) => { const c = r.insertCell();
     c.className = "mono" + (signed && v != null ? (v >= 0 ? " pos" : " neg") : "");
@@ -1768,6 +1871,10 @@ function renderRealTrades(){
     const c0 = r.insertCell();
     const d = document.createElement("span"); d.className = "dirsm " + (tr.side === "LONG" ? "L" : "S");
     d.textContent = tr.side || "—"; c0.appendChild(d);
+    if (!tr._open && parseRpTs(tr.opened) < REAL_START_TS){      // traded before the M1 takeover
+      const era = document.createElement("div"); era.className = "sub"; era.textContent = "Max B";
+      c0.appendChild(era);
+    }
     const c1 = r.insertCell(); c1.className = "mono";
     const o1 = document.createElement("div"); o1.textContent = dt(tr.opened);
     const o2 = document.createElement("div"); o2.className = "sub";
@@ -1796,7 +1903,7 @@ function renderRealTrades(){
     const qv = tr.max_qty != null ? +tr.max_qty : (tr.qty != null ? +tr.qty : null);
     const cq = r.insertCell(); cq.className = "mono";
     cq.textContent = qv != null ? qv.toFixed(5) : "—";
-    const eq0 = eqAt(parseRpTs(tr.opened));
+    const eq0 = eqAt(tOpen(tr), tr);          // the tracker's eq_open (also published on the open trade) first
     const fees = tr.fees_usdt != null ? +tr.fees_usdt : null;
     const hasInt = tr.interest_usdt != null;
     if (hasInt){ intActual = true; intSum += +tr.interest_usdt; } else intPending = true;
@@ -1817,7 +1924,19 @@ function renderRealTrades(){
     const ci = val(r, intr, eq0, false); if (!hasInt) ci.textContent = "—*";
     val(r, netv, eq0, true, tr._open ? (mtmEst ? " mtm est" : " mtm") : "");
   }
-  let n = "ACTUAL Binance account record since 20 Sep 2026 (times UTC; pre-handover activity excluded). " +
+  const lsT = S.rp.ledger_since ? new Date(parseRpTs(S.rp.ledger_since)) : null;
+  const since = lsT && isFinite(lsT) ? lsT.getUTCDate() + " " +
+    ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][lsT.getUTCMonth()] + " " + lsT.getUTCFullYear() : null;
+  let n = (since
+      ? "Every closed trade on the real Binance account since the tracker began on " + since + " (times UTC). " +
+        "Rows marked Max B were opened before the M1 takeover on 20 Sep 2026; later rows are the account under M1, " +
+        "including any orders placed by hand (e.g. the 21 Oct buys). "
+      : "⚠ The account tracker has not published its full ledger yet — trades older than 60 days may be missing. ") +
+    (residues.length ? (() => { const rz = residues.reduce((s, x) => s + (+x.realized_usd || 0), 0),
+        fz = residues.reduce((s, x) => s + (+x.fees_usdt || 0), 0);
+      return "Not listed: " + residues.length + " bookkeeping leftover" + (residues.length > 1 ? "s" : "") +
+        " under 0.001 BTC between two trades (not an order; " + money(rz) + ", incl. $" + fz.toFixed(2) +
+        " of fees) — it is in the account balance but in no row. "; })() : "") +
     "$ = real fills; % = vs the account equity when the trade opened. Entry = the ACTUAL first fill " +
     "that opened the trade (matches your Binance order history); the small 'avg' line is the running " +
     "cost basis incl. hourly top-ups (what Binance's position screen shows), shown when it differs. " +
