@@ -49,11 +49,16 @@
   .chipdir.LONG{color:var(--grn); border-color:var(--grn)}
   .chipdir.SHORT{color:var(--red); border-color:var(--red)}
   .chipdir.FLAT{color:var(--amb); border-color:var(--amb)}
+  .chipdir.STOPPED{color:var(--amb); border-color:var(--amb); border-style:dashed}
+  .stophit{border:1px solid var(--amb); border-radius:10px; padding:8px 10px; margin-bottom:10px;
+    font-size:12.5px; line-height:1.45; color:var(--ink)}
+  .stophit b{color:var(--amb)}
   .sig .d1{font-size:11.5px; color:var(--mut); margin-top:8px; line-height:1.5}
   .sig .d1 b{color:var(--ink); font-weight:600}
   .tag{display:inline-block; font-size:9px; letter-spacing:.08em; border:1px solid var(--line); color:var(--mut);
     border-radius:99px; padding:1.5px 7px; vertical-align:1px; margin-left:6px}
   .tag.live{color:var(--grn); border-color:var(--grn)}
+  .tag.hit{color:var(--amb); border-color:var(--amb)}
 
   .kv{display:flex; justify-content:space-between; gap:10px; font-size:12.5px; padding:4.5px 0; border-bottom:1px solid var(--line)}
   .kv:last-child{border-bottom:none}
@@ -480,6 +485,11 @@ function loadAll(){
     S.btcRT = bi.status === "fulfilled"
       ? bi.value.map(k => ({ t: Math.min(k[6], Date.now()), v: +k[4], o: +k[1] }))
           .filter(q => isFinite(q.t) && q.v > 0) : null;
+    /* daily OHLC (incl. today's candle so far) for the model's stop check */
+    S.btcD = bk.status === "fulfilled"
+      ? bk.value.map(k => ({ d: new Date(k[0]).toISOString().slice(0, 10), h: +k[2], l: +k[3] }))
+          .filter(q => q.h > 0 && q.l > 0) : null;
+    S.m1stop = m1StopCheck();
     /* LIVE MARK: carry the M1 model curve to today at the live price, on the curve's OWN rule.
        The published curve marks a size FIXED AT ENTRY: n = n_entry * (1 + k*(P/E - 1)), with
        k = direction x margin x leverage and E the entry price (verified 2026-11-21: reproduces
@@ -500,7 +510,9 @@ function loadAll(){
         const den = E > 0 ? 1 + k * (P0 / E - 1) : 0;
         const byEntry = sgn !== 0 && E > 0 && om && Math.abs(+om.price - E) / E < 0.005 &&
                         st0.last_date === last.d && den > 0.05;
-        const g = !sgn ? 1 : byEntry ? (1 + k * (S.px / E - 1)) / den : 1 + k * (S.px / P0 - 1);
+        /* stop already hit: the model is out at its stop level — mark there, not at the live price */
+        const Pm = S.m1stop && S.m1stop.hit ? S.m1stop.stop : S.px;
+        const g = !sgn ? 1 : byEntry ? (1 + k * (Pm / E - 1)) / den : 1 + k * (Pm / P0 - 1);
         S.m1.push({ t: ms(dNow), d: dNow, v: last.v * Math.max(g, 0) });
       }
     }
@@ -559,11 +571,18 @@ function renderSignals(){
       if (age <= 2){ m1tag.textContent = "LIVE"; m1tag.className = "tag live"; }
       else { m1tag.textContent = "LAGGING " + age + "d"; m1tag.className = "tag"; }
     } else { m1tag.textContent = "STATIC"; m1tag.className = "tag"; }
-    const chip = document.createElement("span"); chip.className = "chipdir " + dir;
-    chip.textContent = dir; m1.appendChild(chip);
+    /* the model's stop was crossed after its last daily update: it is out of this trade,
+       whatever the published state still says (it records the exit at its next update).
+       A late feed keeps its LAGGING warning — the hit is added, never replaces it. */
+    const hit = !!(S.m1stop && S.m1stop.hit && dir === (S.m1stop.long ? "LONG" : "SHORT"));
+    if (hit){ const lag = /^LAGGING/.test(m1tag.textContent);
+      m1tag.textContent = lag ? m1tag.textContent + " · STOP HIT" : "STOP HIT"; m1tag.className = "tag hit"; }
+    const chip = document.createElement("span"); chip.className = "chipdir " + (hit ? "STOPPED" : dir);
+    chip.textContent = hit ? "STOPPED" : dir; m1.appendChild(chip);
     const d1 = document.createElement("div"); d1.className = "d1";
     const eng = S.m1state && S.m1state.state && S.m1state.state.BK ? S.m1state.state.BK + " · 5×L 2×S" : "X/Y · 5×L 2×S";
     const bits = [["As of", endD], ["Backtest from $500", fmt$(endV)], ["Engine", eng]];
+    if (hit) bits.unshift([dir + " stopped", dayLabel(S.m1stop.day) + " at " + fmtFull(S.m1stop.stop)]);
     for (const [k, v] of bits){ const r = document.createElement("div");
       const b = document.createElement("b"); b.textContent = v;
       r.appendChild(document.createTextNode(k + " ")); r.appendChild(b); d1.appendChild(r); }
@@ -619,6 +638,50 @@ function renderPosition(){
   }
 }
 
+/* ── M1 stop check (owner 2026-11-22: the card said SHORT · LIVE for hours after the stop was
+   hit). The model decides once a day and records a stop-out only at its next daily update, but
+   its trailing stop is a level the market can cross at any moment (the trader's exchange stop
+   fills on touch). The model's rule (signal_daily.py overlay): each day's high (short) / low
+   (long) is tested FIRST against the stop it carried into that day — the published BV for the
+   day after last_date — and only then ratchets for the following day. So exactly ONE day can be
+   judged with certainty from prices alone: the first day after last_date. Later days (a late
+   update) also depend on close-based engine exits/flips the page cannot see — never guessed.
+   A touch must cross the published (2-decimal) BV by half a cent, so a rounding tie never counts.
+   Returns null (no model trade) or {checked, hit, long, day, stop, extreme}. ── */
+function m1StopCheck(){
+  const st = S.m1state, b = st && st.state;
+  if (!b || !(b.BW === 1 || b.BW === -1) || !(+b.BV > 0) || !st.last_date) return null;
+  const long = b.BW === 1, stop = +b.BV;
+  const d1 = new Date(ms(st.last_date) + DAY).toISOString().slice(0, 10);   // the one day we can judge
+  const today = new Date().toISOString().slice(0, 10);
+  const crossed = p => long ? p <= stop - 0.005 : p >= stop + 0.005;
+  if (d1 > today) return { checked: true, hit: false, long, stop };          // state is from today's own close
+  const k = (S.btcD || []).find(q => q.d === d1);
+  if (k && crossed(long ? k.l : k.h)) return { checked: true, hit: true, long, day: d1, stop, extreme: long ? k.l : k.h };
+  /* the live ticker belongs to d1 only while d1 is today (it can lead the daily candle by seconds) */
+  if (d1 === today && S.pxLive && S.px > 0 && crossed(S.px))
+    return { checked: true, hit: true, long, day: d1, stop, extreme: S.px };
+  return { checked: !!k, hit: false, long, stop, day: d1 };
+}
+/* how the real account LEFT this model trade: its newest closed trade in the same direction,
+   OPENED after the model's entry was published (the trader can act only after the entry day's
+   close, so 00:00 UTC of the following day) */
+function m1AccountExit(){
+  const st = S.m1state, b = st && st.state, rp = S.rp;
+  if (!b || !rp || rp.open || !Array.isArray(rp.recent_closed) || !rp.recent_closed.length) return null;
+  const om = m1OpenEntry(), since = (om ? ms(om.date) : (st.last_date ? ms(st.last_date) : NaN)) + DAY;
+  const tr = rp.recent_closed[0], side = b.BW === 1 ? "LONG" : "SHORT";
+  const opened = tr.opened_ms != null ? +tr.opened_ms : parseRpTs(tr.opened);
+  const closed = tr.closed_ms != null ? +tr.closed_ms : parseRpTs(tr.closed);
+  if (tr.side !== side || !(opened >= since) || !(closed >= opened)) return null;
+  const px = tr.last_exit_px != null ? +tr.last_exit_px : (tr.avg_exit_px != null ? +tr.avg_exit_px : null);
+  const net = tr.realized_usd != null ? +tr.realized_usd - (+tr.interest_usdt || 0) : null;
+  return { closed, px, net };
+}
+const fmtUTC = t => { const d = new Date(t); return d.getUTCDate() + " " + MON[d.getUTCMonth()] + " " +
+  String(d.getUTCHours()).padStart(2, "0") + ":" + String(d.getUTCMinutes()).padStart(2, "0") + " UTC"; };
+const dayLabel = d => { const x = new Date(ms(d)); return x.getUTCDate() + " " + MON[x.getUTCMonth()]; };
+
 /* ── M1 vs M5 position card ── */
 function m1OpenEntry(){
   /* entry DATE of the open trade = last unmatched Buy/Short in the live markers */
@@ -660,6 +723,9 @@ function renderM1Position(){
   const card = document.getElementById("m1poscard"), box = document.getElementById("m1pos");
   card.style.display = "";
   box.textContent = "";
+  const h2 = card.querySelector("h2");
+  if (h2) h2.textContent = st.state && st.state.BW && S.m1stop && S.m1stop.hit &&
+    S.m1stop.long === (st.state.BW === 1) ? "M1 vs M5 — stopped out (records at next update)" : "M1 vs M5 — open position";
   if (!(st.state && st.state.BW)){                           // FLAT: show status + next-action watch
     const chip = document.createElement("span"); chip.className = "chipdir FLAT";
     chip.textContent = "FLAT"; box.appendChild(chip);
@@ -701,6 +767,26 @@ function renderM1Position(){
   const b = st.state, long = b.BW === 1;
   const lev = st.leverage != null ? st.leverage : (long ? 5 : 2);
   const om = m1OpenEntry();
+  /* stop crossed since the last daily update: say so first, in plain words */
+  const sh = S.m1stop && S.m1stop.hit && S.m1stop.long === long ? S.m1stop : null;
+  const stale = Math.round((Date.now() - ms(st.last_date)) / DAY) > 2;
+  if (sh){
+    const w = document.createElement("div"); w.className = "stophit";
+    const bb = document.createElement("b"); bb.textContent = "🛑 STOP HIT " + dayLabel(sh.day) + ". ";
+    w.appendChild(bb);
+    w.appendChild(document.createTextNode("BTC traded at " + fmtFull(sh.extreme) + ", " +
+      (long ? "below" : "above") + " this " + (long ? "LONG" : "SHORT") + "'s " + fmtFull(sh.stop) + " stop, so the model is out " +
+      "of the trade at " + fmtFull(sh.stop) + ". " +
+      (stale ? "The model's daily update is overdue; it records this exit when it next runs. "
+             : "It records the exit at its next daily update (after 00:00 UTC). ") +
+      "Until then the rows below show its " + dayLabel(st.last_date) + " close state."));
+    box.appendChild(w);
+  } else if (S.m1stop && !S.m1stop.checked){
+    const w = document.createElement("div"); w.className = "caveat"; w.style.color = "var(--amb)";
+    w.textContent = "⚠ Stop check unavailable (daily price candles unreachable) — the model may already be out; " +
+      "its published stop is " + fmtFull(+b.BV) + ".";
+    box.appendChild(w);
+  }
   const entryTxt = fmtFull(b.BY) + (om && Math.abs(om.price - b.BY) / b.BY < 0.005 ? " · " + om.date : "");
   const conf = st.confidence ? st.confidence.score + "/100 (" + st.confidence.bucket + ")" : "—";
   /* your REAL fill (from the account tracker), when the account is in the same-direction trade —
@@ -734,13 +820,30 @@ function renderM1Position(){
      ACCOUNT is — the hack borrow-freeze held this card on SHORT while the account sat flat,
      and the only hint was a missing row. Say it explicitly, in amber. */
   const inThisTrade = !!(rp && (rp.side === "LONG" ? 1 : -1) === b.BW);
+  const ax = !rp ? m1AccountExit() : null;          // how the account LEFT this model trade, if it did
+  const exitTxt = a => "closed " + fmtUTC(a.closed) + (a.px ? " at " + fmtFull(a.px) : "") +
+    (a.net != null ? " · " + (a.net >= 0 ? "+$" : "−$") + Math.abs(a.net).toFixed(2) + " net" : "");
   if (S.rp && !inThisTrade){
     const r = document.createElement("div"); r.className = "kv";
     const kk = document.createElement("span"); kk.className = "k"; kk.textContent = "Your account (real)";
     const vv = document.createElement("span"); vv.className = "v mono";
-    vv.textContent = rp ? ("in a " + rp.side + " position — NOT this model trade")
-                        : "NOT in this trade (flat — entry pending or blocked)";
     vv.style.color = "var(--amb)";
+    if (rp) vv.textContent = "in a " + rp.side + " position — NOT this model trade";
+    else if (ax && sh){                               // both out of the trade: the account's real result
+      vv.textContent = exitTxt(ax);
+      vv.style.color = ax.net == null ? "" : ax.net >= 0 ? "var(--grn)" : "var(--red)";
+    } else if (ax) vv.textContent = "flat — " + exitTxt(ax) + " (the model still holds this trade)";
+    else if (sh) vv.textContent = "flat — was not in this trade, nothing to close";
+    else vv.textContent = "NOT in this trade (flat — entry pending or blocked)";
+    r.append(kk, vv); box.appendChild(r);
+  } else if (inThisTrade && sh){
+    /* the exchange stop at BV fills on touch — usually the tracker is just behind */
+    const r = document.createElement("div"); r.className = "kv";
+    const kk = document.createElement("span"); kk.className = "k"; kk.textContent = "Your account (real)";
+    const vv = document.createElement("span"); vv.className = "v mono"; vv.style.color = "var(--amb)";
+    vv.textContent = "still open in the last tracker update (" + (S.rp.generated || "—") + ") — it closes at the " +
+      fmtFull(+b.BV) + " stop on touch, or at the trader's next hourly check if price was already past it; " +
+      "the next update confirms";
     r.append(kk, vv); box.appendChild(r);
   }
   /* amber on the owed row whenever the ACCOUNT is flat — in-trade borrow is the expected case */
@@ -1325,7 +1428,9 @@ function draw(){
     "BTC hold = the same amount simply held in spot BTC — no leverage, no strategy. Log scale: equal heights are " +
     "equal % moves. A period runs from 00:00 UTC on its first date (the previous day's close) to the end of its last " +
     "date — the same on both charts. All = from the " + dLab(tLo) + " close, the first day every shown line exists. " +
-    (liveEdge ? "The right edge is marked to the live BTC price. "
+    (liveEdge ? "The right edge is marked to the live BTC price" +
+        (S.m1stop && S.m1stop.hit ? " (M1 at its " + fmtFull(S.m1stop.stop) + " stop: stopped out " + dayLabel(S.m1stop.day) +
+          ", recorded at the model's next update)" : "") + ". "
       : win.b >= tHi - 60e3 ? "No live price right now: the right edge is each line's last published value. " : "") +
     "Worst dip (= max drawdown) is the biggest fall from a high to a later low inside the period, on daily values; " +
     "Avg per year (= CAGR) is shown for periods of 2 years or more.";
@@ -1776,10 +1881,12 @@ function renderTrades(){
       }
     }
     if (open){                                                   // the OPEN trade, marked to live (like the Max B tab)
-      const lp = S.px > 0 ? S.px : (S.m1state && +S.m1state.price > 0 ? +S.m1state.price : null);
+      /* stop already hit since the last daily update: show the exit the model will record */
+      const sh = S.m1stop && S.m1stop.hit && S.m1stop.long === (open.action === "Buy") ? S.m1stop : null;
+      const lp = sh ? sh.stop : S.px > 0 ? S.px : (S.m1state && +S.m1state.price > 0 ? +S.m1state.price : null);
       const r = t.insertRow();
       dirCell(r, open.action === "Buy");
-      cell(r, open.date, open.price); cell(r, "open · mtm", lp);
+      cell(r, open.date, open.price); cell(r, sh ? "stop hit " + sh.day.slice(5) + " · records next update" : "open · mtm", lp);
       const oret = lp ? (open.action === "Buy" ? lp / open.price - 1 : (open.price - lp) / open.price) : null;
       const odN = tradeDays(open.date, null);
       const oint = odN == null ? null : odN * (open.action === "Buy" ? 0.024 : 0.010);
